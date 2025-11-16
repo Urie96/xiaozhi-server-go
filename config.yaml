@@ -89,9 +89,6 @@ local_mcp_fun:
   - name: "play_music"
     description: "播放本地音乐"
     enabled: true
-  - name: "switch_agent"
-    description: "切换智能体"
-    enabled: true
 
 # 选择使用的模块
 selected_module:

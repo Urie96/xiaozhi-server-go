@@ -210,3 +210,9 @@ func (p *Provider) parseResponse(res []byte) (resp synResp, err error) {
 
 	return resp, nil
 }
+
+func init() {
+	tts.Register("doubao", func(config *tts.Config, deleteFile bool) (tts.Provider, error) {
+		return NewProvider(config, deleteFile)
+	})
+}

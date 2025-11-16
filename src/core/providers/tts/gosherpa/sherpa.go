@@ -75,3 +75,9 @@ func (p *Provider) ToTTS(text string) (string, error) {
 	// Return the path to the generated audio file
 	return tempFile, nil
 }
+
+func init() {
+	tts.Register("gosherpa", func(config *tts.Config, deleteFile bool) (tts.Provider, error) {
+		return NewProvider(config, deleteFile)
+	})
+}

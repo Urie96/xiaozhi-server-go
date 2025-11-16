@@ -57,6 +57,11 @@ func (p *BaseProvider) Initialize() error {
 	return nil
 }
 
+func (p *BaseProvider) SetVoice(voice string) (error, string) {
+	p.Config().Voice = voice
+	return nil, voice
+}
+
 // Cleanup 清理资源
 func (p *BaseProvider) Cleanup() error {
 	if p.deleteFile {
