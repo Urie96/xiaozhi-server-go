@@ -224,7 +224,7 @@ func NewConnectionHandler(
 	handler.quickReplyCache = utils.NewQuickReplyCache(handler.ttsProviderName, handler.voiceName)
 
 	// 初始化对话管理器
-	handler.dialogueManager = chat.NewDialogueManager(handler.logger, nil)
+	handler.dialogueManager = chat.NewDialogueManager(handler.logger)
 	handler.dialogueManager.SetSystemMessage(handler.config.DefaultPrompt)
 	handler.functionRegister = function.NewFunctionRegistry()
 	handler.initMCPResultHandlers()

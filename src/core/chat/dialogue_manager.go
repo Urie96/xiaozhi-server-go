@@ -1,8 +1,6 @@
 package chat
 
 import (
-	"encoding/json"
-
 	"xiaozhi-server-go/src/core/types"
 	"xiaozhi-server-go/src/core/utils"
 )
@@ -13,15 +11,13 @@ type Message = types.Message
 type DialogueManager struct {
 	logger   *utils.Logger
 	dialogue []Message
-	memory   MemoryInterface
 }
 
 // NewDialogueManager 创建对话管理器实例
-func NewDialogueManager(logger *utils.Logger, memory MemoryInterface) *DialogueManager {
+func NewDialogueManager(logger *utils.Logger) *DialogueManager {
 	return &DialogueManager{
 		logger:   logger,
 		dialogue: make([]Message, 0),
-		memory:   memory,
 	}
 }
 
@@ -59,20 +55,6 @@ func (dm *DialogueManager) KeepRecentMessages(maxMessages int) {
 	}
 }
 
-// GetRecentMessages 获取最近的对话消息
-// 如果 maxMessages <= 0，则返回全部对话消息
-func (dm *DialogueManager) GetRecentMessages(maxMessages int) []Message {
-	if maxMessages <= 0 || len(dm.dialogue) <= maxMessages {
-		return dm.dialogue
-	}
-	// 保留system消息和最近的 maxMessages 条消息
-	if len(dm.dialogue) > 0 && dm.dialogue[0].Role == "system" {
-		// 保留system消息
-		return append([]Message{dm.dialogue[0]}, dm.dialogue[len(dm.dialogue)-maxMessages:]...)
-	}
-	return dm.dialogue
-}
-
 // Put 添加新消息到对话
 func (dm *DialogueManager) Put(message Message) {
 	// 如果最近一条是user消息且当前也是user消息，则插入一个空的assistant消息
@@ -82,60 +64,7 @@ func (dm *DialogueManager) Put(message Message) {
 	dm.dialogue = append(dm.dialogue, message)
 }
 
-func (dm *DialogueManager) GetLastTwoMessages() []Message {
-	if len(dm.dialogue) < 2 {
-		return nil
-	}
-	return dm.dialogue[len(dm.dialogue)-2:]
-}
-
 // GetLLMDialogue 获取完整对话历史
 func (dm *DialogueManager) GetLLMDialogue() []Message {
 	return dm.dialogue
-}
-
-// GetLLMDialogueWithMemory 获取带记忆的对话
-func (dm *DialogueManager) GetLLMDialogueWithMemory(memoryStr string) []Message {
-	if memoryStr == "" {
-		return dm.GetLLMDialogue()
-	}
-
-	memoryMsg := Message{
-		Role:    "system",
-		Content: memoryStr,
-	}
-
-	dialogue := make([]Message, 0, len(dm.dialogue)+1)
-	dialogue = append(dialogue, memoryMsg)
-	dialogue = append(dialogue, dm.dialogue...)
-
-	return dialogue
-}
-
-// Clear 清空对话历史
-func (dm *DialogueManager) Clear() {
-	dm.dialogue = make([]Message, 0)
-}
-
-func (dm *DialogueManager) Length() int {
-	return len(dm.dialogue)
-}
-
-// ToJSON 将对话历史转换为JSON字符串
-func (dm *DialogueManager) ToJSON(keepSystemPrompt bool) (string, error) {
-	dialogue := dm.dialogue
-	if !keepSystemPrompt && len(dialogue) > 0 && dialogue[0].Role == "system" {
-		// 如果不保留系统消息，则移除第一条消息
-		dialogue = dialogue[1:]
-	}
-	bytes, err := json.Marshal(dialogue)
-	if err != nil {
-		return "", err
-	}
-	return string(bytes), nil
-}
-
-// LoadFromJSON 从JSON字符串加载对话历史
-func (dm *DialogueManager) LoadFromJSON(jsonStr string) error {
-	return json.Unmarshal([]byte(jsonStr), &dm.dialogue)
 }

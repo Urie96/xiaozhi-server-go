@@ -58,7 +58,7 @@ func LoadConfigAndLogger() (*configs.Config, *utils.Logger, error) {
 		fmt.Printf("数据库连接失败: %v\n", err)
 	}
 	// 加载配置,默认使用.config.yaml
-	config, err := configs.LoadConfig()
+	config, err := configs.LoadConfig(os.Getenv("CONFIG_PATH"))
 	if err != nil {
 		return nil, nil, err
 	}

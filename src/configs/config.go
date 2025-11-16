@@ -1,9 +1,7 @@
 package configs
 
 import (
-	"fmt"
 	"os"
-	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -150,9 +148,9 @@ func (cfg *Config) ToString() string {
 
 // LoadConfig 加载配置
 // 完全从数据库加载配置，如果数据库为空则使用默认配置并初始化数据库
-func LoadConfig() (*Config, error) {
+func LoadConfig(path string) (*Config, error) {
 	config := &Config{}
-	data, err := os.ReadFile(".config.yaml")
+	data, err := os.ReadFile(path)
 	if err != nil {
 		panic(err)
 	}
@@ -162,83 +160,4 @@ func LoadConfig() (*Config, error) {
 
 	Cfg = config
 	return config, nil
-}
-
-func CheckAndModifyConfig(cfg *Config) *Config {
-	// 检查Cfg.LocalMCPFun全部小写并去除空格
-	if cfg.LocalMCPFun == nil {
-		cfg.LocalMCPFun = []LocalMCPFun{}
-	}
-	fmt.Printf("检查配置: LocalMCPFun cnt %d\n", len(cfg.LocalMCPFun))
-	if len(cfg.LocalMCPFun) < 10 {
-		for i := range cfg.LocalMCPFun {
-			cfg.LocalMCPFun[i].Name = strings.ToLower(strings.TrimSpace(cfg.LocalMCPFun[i].Name))
-			cfg.LocalMCPFun[i].Description = strings.ToLower(strings.TrimSpace(cfg.LocalMCPFun[i].Description))
-		}
-	}
-	// 检查默认配置的ASR,LLM,TTS和VLLLM是否存在
-	if cfg.SelectedModule == nil {
-		cfg.SelectedModule = map[string]string{}
-	}
-	if cfg.LLM == nil {
-		cfg.LLM = map[string]LLMConfig{}
-	}
-	if cfg.VLLLM == nil {
-		cfg.VLLLM = map[string]VLLMConfig{}
-	}
-	if cfg.ASR == nil {
-		cfg.ASR = map[string]ASRConfig{}
-	}
-	if cfg.TTS == nil {
-		cfg.TTS = map[string]TTSConfig{}
-	}
-	fmt.Printf("检查配置: LLM:%d, VLLLM:%d, ASR:%d, TTS:%d\n", len(cfg.LLM), len(cfg.VLLLM), len(cfg.ASR), len(cfg.TTS))
-	fmt.Println("检查配置: SelectedModule", cfg.SelectedModule)
-	// 如果SelectedModule没有选择或者选择的不存在，则选择第一个
-	llmName, ok := cfg.SelectedModule["LLM"]
-	_, exists := cfg.LLM[llmName]
-	if !ok || llmName == "" || !exists {
-		// 选择LLM中有的作为默认
-		for name := range cfg.LLM {
-			cfg.SelectedModule["LLM"] = name
-			fmt.Println("未设置默认LLM或设置的LLM不存在，已设置为", name)
-			break
-		}
-	}
-
-	vlllmName, ok := cfg.SelectedModule["VLLLM"]
-	_, exists = cfg.VLLLM[vlllmName]
-	if !ok || vlllmName == "" || !exists {
-		// 选择VLLLM中有的作为默认
-		for name := range cfg.VLLLM {
-			cfg.SelectedModule["VLLLM"] = name
-			fmt.Println("未设置默认VLLLM或设置的VLLLM不存在，已设置为", name)
-			break
-		}
-	}
-
-	asrName, ok := cfg.SelectedModule["ASR"]
-	_, exists = cfg.ASR[asrName]
-	// ASRConfig 是 map[string]interface{}，只判断 key 是否存在和 name 非空
-	if !ok || asrName == "" || !exists {
-		// 选择ASR中有的作为默认
-		for name := range cfg.ASR {
-			cfg.SelectedModule["ASR"] = name
-			fmt.Println("未设置默认ASR或设置的ASR不存在，已设置为", name)
-			break
-		}
-	}
-
-	ttsName, ok := cfg.SelectedModule["TTS"]
-	_, exists = cfg.TTS[ttsName]
-	if !ok || ttsName == "" || !exists {
-		// 选择TTS中有的作为默认
-		for name := range cfg.TTS {
-			cfg.SelectedModule["TTS"] = name
-			fmt.Println("未设置默认TTS或设置的TTS不存在，已设置为", name)
-			break
-		}
-	}
-
-	return cfg
 }

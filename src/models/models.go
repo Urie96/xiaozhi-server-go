@@ -28,17 +28,3 @@ type Agent struct {
 	CatalogyID         uint      `                            json:"catalogy_id"`        // 分类ID
 	Extra              string    `gorm:"type:text"            json:"extra"`              // 额外信息，JSON格式
 }
-type AgentDialog struct {
-	ID             uint      `gorm:"primaryKey" json:"id"`
-	Conversationid string    `                  json:"conversationId"`
-	AgentID        uint      `gorm:"index"      json:"agentID"`          // 外键关联 Agent
-	UserID         uint      `gorm:"index"      json:"userID"`           // 外键关联 User
-	Dialog         string    `gorm:"type:text"  json:"dialog,omitempty"` // 对话内容
-	CreatedAt      time.Time `                  json:"createdAt"`        // 创建时间
-	UpdatedAt      time.Time `                  json:"updatedAt"`        // 更新
-}
-
-type ServerConfig struct {
-	ID     uint   `gorm:"primaryKey"`
-	CfgStr string `gorm:"type:text"` // 服务器的配置内容，从config.yaml转换而来
-}

@@ -129,7 +129,6 @@ func SetLogger(logger *xiaozhi_utils.Logger) {
 func migrateTables(db *gorm.DB) error {
 	err := db.AutoMigrate(
 		&models.Agent{},
-		&models.AgentDialog{},
 	)
 	return err
 }
