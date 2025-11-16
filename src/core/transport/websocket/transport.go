@@ -86,21 +86,6 @@ func (t *WebSocketTransport) SetConnectionHandler(handler transport.ConnectionHa
 	t.connHandler = handler
 }
 
-// GetActiveConnectionCount 获取活跃连接数
-func (t *WebSocketTransport) GetActiveConnectionCount() (int, int) {
-	count := 0
-	t.activeConnections.Range(func(key, value any) bool {
-		count++
-		return true
-	})
-	return count, count
-}
-
-// GetType 获取传输类型
-func (t *WebSocketTransport) GetType() string {
-	return "websocket"
-}
-
 // handleWebSocket 处理WebSocket连接
 func (t *WebSocketTransport) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	conn, err := t.upgrader.Upgrade(w, r, nil)

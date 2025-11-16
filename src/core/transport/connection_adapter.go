@@ -35,7 +35,6 @@ func NewConnectionContextAdapter(
 	logger *utils.Logger,
 	req *http.Request,
 ) *ConnectionContextAdapter {
-	clientID := conn.GetID()
 	connCtx, connCancel := context.WithCancel(context.Background())
 
 	// 创建ConnectionHandler
@@ -45,7 +44,6 @@ func NewConnectionContextAdapter(
 		handler:     handler,
 		providerSet: providerSet,
 		poolManager: poolManager,
-		clientID:    clientID,
 		logger:      logger,
 		conn:        conn,
 		ctx:         connCtx,
@@ -177,7 +175,7 @@ func (f *DefaultConnectionHandlerFactory) CreateHandler(
 		f.logger.Error(fmt.Sprintf("获取提供者集合失败: %v", err))
 		return nil
 	}
-	//检查conn是否有属性mcpManager
+	// 检查conn是否有属性mcpManager
 	if holder, ok := conn.(MCPManagerHolder); ok {
 		if mgr := holder.GetMCPManager(); mgr != nil {
 			f.poolManager.ReturnMcpManager(providerSet.MCP)

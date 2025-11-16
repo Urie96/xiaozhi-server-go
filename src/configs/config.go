@@ -23,9 +23,8 @@ type Config struct {
 	// 传输层配置
 	Transport struct {
 		WebSocket struct {
-			Enabled bool   `yaml:"enabled" json:"enabled"`
-			IP      string `yaml:"ip" json:"ip"`
-			Port    int    `yaml:"port" json:"port"`
+			IP   string `yaml:"ip" json:"ip"`
+			Port int    `yaml:"port" json:"port"`
 		} `yaml:"websocket" json:"websocket"`
 
 		MQTTUDP struct {

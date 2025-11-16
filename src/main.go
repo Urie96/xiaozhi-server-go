@@ -65,12 +65,12 @@ func StartTransportServer(
 	logger *utils.Logger,
 	g *errgroup.Group,
 	groupCtx context.Context,
-) (*transport.TransportManager, error) {
+) error {
 	// 初始化资源池管理器
 	poolManager, err := pool.NewPoolManager(config, logger)
 	if err != nil {
 		logger.Error("%s", fmt.Sprintf("初始化资源池管理器失败: %v", err))
-		return nil, fmt.Errorf("初始化资源池管理器失败: %v", err)
+		return fmt.Errorf("初始化资源池管理器失败: %v", err)
 	}
 
 	// 初始化任务管理器
@@ -79,9 +79,6 @@ func StartTransportServer(
 		MaxTasksPerClient: 20,
 	})
 	taskMgr.Start()
-
-	// 创建传输管理器
-	transportManager := transport.NewTransportManager(config, logger)
 
 	// 创建连接处理器工厂
 	handlerFactory := transport.NewDefaultConnectionHandlerFactory(
@@ -95,16 +92,13 @@ func StartTransportServer(
 	enabledTransports := make([]string, 0)
 
 	// 检查WebSocket传输层配置
-	if config.Transport.WebSocket.Enabled {
-		wsTransport := websocket.NewWebSocketTransport(config, logger)
-		wsTransport.SetConnectionHandler(handlerFactory)
-		transportManager.RegisterTransport("websocket", wsTransport)
-		enabledTransports = append(enabledTransports, "WebSocket")
-		logger.Debug("WebSocket传输层已注册")
-	}
+	wsTransport := websocket.NewWebSocketTransport(config, logger)
+	wsTransport.SetConnectionHandler(handlerFactory)
+	enabledTransports = append(enabledTransports, "WebSocket")
+	logger.Debug("WebSocket传输层已注册")
 
 	if len(enabledTransports) == 0 {
-		return nil, fmt.Errorf("没有启用任何传输层")
+		return fmt.Errorf("没有启用任何传输层")
 	}
 
 	logger.Info("[传输层] [启用 %v]", enabledTransports)
@@ -115,26 +109,21 @@ func StartTransportServer(
 		go func() {
 			<-groupCtx.Done()
 			logger.Info("收到关闭信号，开始关闭所有传输层...")
-			if err := transportManager.StopAll(); err != nil {
+			if err := wsTransport.Stop(); err != nil {
 				logger.Error("关闭传输层失败: %v", err)
 			} else {
 				logger.Info("所有传输层已优雅关闭")
 			}
 		}()
 
-		// 使用传输管理器启动服务
-		if err := transportManager.StartAll(groupCtx); err != nil {
-			if groupCtx.Err() != nil {
-				return nil // 正常关闭
-			}
-			logger.Error("传输层运行失败 %v", err)
+		if err := wsTransport.Start(groupCtx); err != nil {
 			return err
 		}
 		return nil
 	})
 
 	logger.Debug("传输层服务已成功启动")
-	return transportManager, nil
+	return nil
 }
 
 func StartHttpServer(
@@ -256,7 +245,7 @@ func startServices(
 	groupCtx context.Context,
 ) error {
 	// 启动传输层服务
-	if _, err := StartTransportServer(config, logger, g, groupCtx); err != nil {
+	if err := StartTransportServer(config, logger, g, groupCtx); err != nil {
 		return fmt.Errorf("启动传输层服务失败: %w", err)
 	}
 

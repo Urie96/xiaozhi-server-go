@@ -34,19 +34,9 @@ type Connection interface {
 	// 发送消息
 	WriteMessage(messageType int, data []byte) error
 	// 读取消息
-	ReadMessage(stopChan <-chan struct{}) (messageType int, data []byte, err error)
+	ReadMessage() (messageType int, data []byte, err error)
 	// 关闭连接
 	Close() error
-	// 获取连接ID
-	GetID() string
-	// 获取连接类型
-	GetType() string
-	// 检查连接状态
-	IsClosed() bool
-	// 获取最后活跃时间
-	GetLastActiveTime() time.Time
-	// 检查是否过期
-	IsStale(timeout time.Duration) bool
 }
 
 type ttsConfigGetter interface {
@@ -74,7 +64,6 @@ type ConnectionHandler struct {
 		vlllm *vlllm.Provider // VLLLM提供者，可选
 	}
 
-	initialVoice    string // 初始语音名称
 	ttsProviderName string // 默认TTS提供者名称
 	voiceName       string // 语音名称
 
@@ -327,7 +316,7 @@ func (h *ConnectionHandler) Handle(conn Connection) {
 		case <-h.stopChan:
 			return
 		default:
-			messageType, message, err := conn.ReadMessage(h.stopChan)
+			messageType, message, err := conn.ReadMessage()
 			if err != nil {
 				h.LogError(fmt.Sprintf("读取消息失败: %v, 退出主消息循环", err))
 				return
@@ -927,7 +916,7 @@ func (h *ConnectionHandler) SpeakAndPlay(text string, textIndex int, round int) 
 	}
 
 	if len(text) > 255 {
-		h.logger.Warn(fmt.Sprintf("文本过长，超过255字符限制，截断合成语音: %s", text))
+		h.logger.Warn("文本过长，超过255字符限制，截断合成语音: %s", text)
 		text = text[:255] // 截断文本
 	}
 
@@ -988,9 +977,6 @@ func (h *ConnectionHandler) Close() {
 		close(h.stopChan)
 
 		h.closeOpusDecoder()
-		if h.providers.tts != nil {
-			h.providers.tts.SetVoice(h.initialVoice) // 恢复初始语音
-		}
 		if h.providers.asr != nil {
 			h.providers.asr.ResetSilenceCount() // 重置静音计数
 			if err := h.providers.asr.Reset(); err != nil {
