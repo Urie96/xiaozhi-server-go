@@ -58,7 +58,7 @@ func LoadConfigAndLogger() (*configs.Config, *utils.Logger, error) {
 		fmt.Printf("数据库连接失败: %v\n", err)
 	}
 	// 加载配置,默认使用.config.yaml
-	config, configPath, err := configs.LoadConfig(database.GetServerConfigDB())
+	config, err := configs.LoadConfig()
 	if err != nil {
 		return nil, nil, err
 	}
@@ -68,9 +68,9 @@ func LoadConfigAndLogger() (*configs.Config, *utils.Logger, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	logger.Info("[日志] [初始化 %s] 成功", configPath)
+	logger.Info("[日志] [初始化] 成功")
 	utils.DefaultLogger = logger
-	logger.Info("日志系统初始化成功,level:%s 配置文件路径: %s", config.Log.LogLevel, configPath)
+	logger.Info("日志系统初始化成功,level:%s", config.Log.LogLevel)
 
 	database.SetLogger(logger)
 

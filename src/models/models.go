@@ -42,12 +42,3 @@ type ServerConfig struct {
 	ID     uint   `gorm:"primaryKey"`
 	CfgStr string `gorm:"type:text"` // 服务器的配置内容，从config.yaml转换而来
 }
-
-type ServerStatus struct {
-	ID               uint      `gorm:"primaryKey"`
-	OnlineDeviceNum  int       `json:"onlineDeviceNum"`  // 实时在线设备数量，保持mqtt连接，即使不在对话也属于在线
-	OnlineSessionNum int       `json:"onlineSessionNum"` // 正在对话的设备数量，包括mqtt和websocket
-	CPUUsage         string    `json:"cpuUsage"`         // CPU使用率
-	MemoryUsage      string    `json:"memoryUsage"`      // 内存使用率
-	UpdatedAt        time.Time `json:"updatedAt"`
-}

@@ -148,51 +148,20 @@ func (cfg *Config) ToString() string {
 	return string(data)
 }
 
-func (cfg *Config) FromString(data string) error {
-	return yaml.Unmarshal([]byte(data), cfg)
-}
-
-func (cfg *Config) SaveToDB(dbi ConfigDBInterface) error {
-	data := cfg.ToString()
-	return dbi.UpdateServerConfig(data)
-}
-
 // LoadConfig 加载配置
 // 完全从数据库加载配置，如果数据库为空则使用默认配置并初始化数据库
-func LoadConfig(dbi ConfigDBInterface) (*Config, string, error) {
-	bUseDatabaseCfg := true
-	// 尝试从数据库加载配置
-	cfgStr, err := dbi.LoadServerConfig()
-	if err != nil {
-		fmt.Println("加载服务器配置失败:", err)
-		return nil, "", err
-	}
-
+func LoadConfig() (*Config, error) {
 	config := &Config{}
-
-	path := "database:serverConfig"
-	if cfgStr != "" {
-		config.FromString(cfgStr)
-		Cfg = config
-		if bUseDatabaseCfg {
-			return Cfg, path, nil
-		}
-	}
-
-	// 尝试从文件读取
-	path = ".config.yaml"
-
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(".config.yaml")
 	if err != nil {
 		panic(err)
 	}
-
-	err = dbi.InitServerConfig(string(data))
-	if err != nil {
-		fmt.Println("初始化服务器配置到数据库失败:", err)
+	if err := yaml.Unmarshal(data, config); err != nil {
+		return nil, err
 	}
+
 	Cfg = config
-	return config, path, nil
+	return config, nil
 }
 
 func CheckAndModifyConfig(cfg *Config) *Config {
@@ -202,7 +171,7 @@ func CheckAndModifyConfig(cfg *Config) *Config {
 	}
 	fmt.Printf("检查配置: LocalMCPFun cnt %d\n", len(cfg.LocalMCPFun))
 	if len(cfg.LocalMCPFun) < 10 {
-		for i := 0; i < len(cfg.LocalMCPFun); i++ {
+		for i := range cfg.LocalMCPFun {
 			cfg.LocalMCPFun[i].Name = strings.ToLower(strings.TrimSpace(cfg.LocalMCPFun[i].Name))
 			cfg.LocalMCPFun[i].Description = strings.ToLower(strings.TrimSpace(cfg.LocalMCPFun[i].Description))
 		}

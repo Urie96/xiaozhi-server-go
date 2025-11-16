@@ -113,7 +113,6 @@ func InitDB() (*gorm.DB, string, error) {
 	}
 
 	DB = db
-	NewServerConfigDB(db)
 	return db, dbType, nil
 }
 
