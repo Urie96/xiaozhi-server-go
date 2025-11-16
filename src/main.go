@@ -15,31 +15,9 @@ import (
 	"strings"
 	"syscall"
 	"time"
-
 	"xiaozhi-server-go/src/configs"
 	"xiaozhi-server-go/src/configs/database"
-	"xiaozhi-server-go/src/core/auth"
-	"xiaozhi-server-go/src/core/auth/store"
 	"xiaozhi-server-go/src/core/pool"
-	"xiaozhi-server-go/src/core/transport"
-	"xiaozhi-server-go/src/core/transport/websocket"
-	"xiaozhi-server-go/src/core/utils"
-	_ "xiaozhi-server-go/src/docs"
-	"xiaozhi-server-go/src/httpsvr/ota"
-	"xiaozhi-server-go/src/httpsvr/vision"
-	"xiaozhi-server-go/src/task"
-
-	_ "xiaozhi-server-go/src/docs"
-
-	cfg "xiaozhi-server-go/src/httpsvr/webapi"
-
-	"github.com/gin-contrib/cors"
-	"github.com/gin-contrib/static"
-	"github.com/joho/godotenv"
-	swaggerFiles "github.com/swaggo/files"
-	ginSwagger "github.com/swaggo/gin-swagger"
-
-	// 导入所有providers以确保init函数被调用
 	_ "xiaozhi-server-go/src/core/providers/asr/deepgram"
 	_ "xiaozhi-server-go/src/core/providers/asr/doubao"
 	_ "xiaozhi-server-go/src/core/providers/asr/gosherpa"
@@ -54,6 +32,15 @@ import (
 	_ "xiaozhi-server-go/src/core/providers/tts/gosherpa"
 	_ "xiaozhi-server-go/src/core/providers/vlllm/ollama"
 	_ "xiaozhi-server-go/src/core/providers/vlllm/openai"
+	"xiaozhi-server-go/src/core/transport"
+	"xiaozhi-server-go/src/core/transport/websocket"
+	"xiaozhi-server-go/src/core/utils"
+	"xiaozhi-server-go/src/httpsvr/ota"
+	"xiaozhi-server-go/src/httpsvr/vision"
+	"xiaozhi-server-go/src/task"
+
+	"github.com/gin-contrib/cors"
+	"github.com/joho/godotenv"
 
 	"github.com/gin-gonic/gin"
 	"golang.org/x/sync/errgroup"
@@ -92,29 +79,9 @@ func LoadConfigAndLogger() (*configs.Config, *utils.Logger, error) {
 	return config, logger, nil
 }
 
-// initAuthManager 初始化认证管理器
-func initAuthManager(config *configs.Config, logger *utils.Logger) (*auth.AuthManager, error) {
-
-	// 创建存储配置
-	storeConfig := &store.StoreConfig{
-		Type:     config.Server.Auth.Store.Type,
-		ExpiryHr: config.Server.Auth.Store.Expiry,
-		Config:   make(map[string]interface{}),
-	}
-
-	// 创建认证管理器
-	authManager, err := auth.NewAuthManager(storeConfig, logger)
-	if err != nil {
-		return nil, fmt.Errorf("初始化认证管理器失败: %v", err)
-	}
-
-	return authManager, nil
-}
-
 func StartTransportServer(
 	config *configs.Config,
 	logger *utils.Logger,
-	authManager *auth.AuthManager,
 	g *errgroup.Group,
 	groupCtx context.Context,
 ) (*transport.TransportManager, error) {
@@ -231,9 +198,6 @@ func StartHttpServer(
 	// API路由全部挂载到/api前缀下
 	apiGroup := router.Group("/api")
 
-	// 静态资源服务，前端访问 /web/xxx
-	router.Use(static.Serve("/", static.LocalFile("./web", true)))
-
 	// history 路由兜底，只处理 /web 下的 GET 请求
 	router.NoRoute(func(c *gin.Context) {
 		path := c.Request.URL.Path
@@ -263,38 +227,11 @@ func StartHttpServer(
 		return nil, err
 	}
 
-	cfgServer, err := cfg.NewDefaultAdminService(config, logger)
-	if err != nil {
-		logger.Error("Admin 服务初始化失败 %v", err)
-		return nil, err
-	}
-	if err := cfgServer.Start(groupCtx, router, apiGroup); err != nil {
-		logger.Error("Admin 服务启动失败 %v", err)
-		return nil, err
-	}
-
-	userServer, err := cfg.NewDefaultUserService(config, logger)
-	if err != nil {
-		logger.Error("用户服务初始化失败 %v", err)
-		return nil, err
-	}
-	if err := userServer.Start(groupCtx, router, apiGroup); err != nil {
-		logger.Error("用户服务启动失败 %v", err)
-		return nil, err
-	}
-
-	// 启动系统配置服务
-	systemConfigService := cfg.NewSystemConfigService(logger, database.GetDB())
-	systemConfigService.RegisterRoutes(apiGroup)
-
 	// HTTP Server（支持优雅关机）
 	httpServer := &http.Server{
 		Addr:    ":" + strconv.Itoa(config.Web.Port),
 		Handler: router,
 	}
-
-	// 注册Swagger文档路由
-	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	g.Go(func() error {
 		logger.Info("Gin 服务已启动，访问地址: http://localhost:%d", config.Web.Port)
@@ -360,12 +297,11 @@ func GracefulShutdown(cancel context.CancelFunc, logger *utils.Logger, g *errgro
 func startServices(
 	config *configs.Config,
 	logger *utils.Logger,
-	authManager *auth.AuthManager,
 	g *errgroup.Group,
 	groupCtx context.Context,
 ) error {
 	// 启动传输层服务
-	if _, err := StartTransportServer(config, logger, authManager, g, groupCtx); err != nil {
+	if _, err := StartTransportServer(config, logger, g, groupCtx); err != nil {
 		return fmt.Errorf("启动传输层服务失败: %w", err)
 	}
 
@@ -385,13 +321,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	// 初始化认证管理器
-	authManager, err := initAuthManager(config, logger)
-	if err != nil {
-		logger.Error("初始化认证管理器失败:", err)
-		os.Exit(1)
-	}
-
 	// 创建可取消的上下文
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -400,7 +329,7 @@ func main() {
 	g, groupCtx := errgroup.WithContext(ctx)
 
 	// 启动所有服务
-	if err := startServices(config, logger, authManager, g, groupCtx); err != nil {
+	if err := startServices(config, logger, g, groupCtx); err != nil {
 		logger.Error("启动服务失败:%v", err)
 		cancel()
 		os.Exit(1)
@@ -408,11 +337,6 @@ func main() {
 
 	// 启动优雅关机处理
 	GracefulShutdown(cancel, logger, g)
-
-	// 关闭认证管理器
-	if authManager != nil {
-		authManager.Close()
-	}
 
 	logger.Info("程序已成功退出")
 	logger.Close()

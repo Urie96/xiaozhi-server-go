@@ -11,10 +11,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-
 	"xiaozhi-server-go/src/configs"
 	"xiaozhi-server-go/src/configs/database"
-	"xiaozhi-server-go/src/core/auth"
 	"xiaozhi-server-go/src/core/chat"
 	"xiaozhi-server-go/src/core/function"
 	"xiaozhi-server-go/src/core/image"
@@ -31,7 +29,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/sashabaranov/go-openai"
-	"gorm.io/gorm"
 )
 
 // Connection 统一连接接口
@@ -71,7 +68,6 @@ type ConnectionHandler struct {
 	conn             Connection
 	closeOnce        sync.Once
 	taskMgr          *task.TaskManager
-	authManager      *auth.AuthManager // 认证管理器
 	safeCallbackFunc func(func(*ConnectionHandler)) func()
 	providers        struct {
 		asr   providers.ASRProvider
@@ -226,7 +222,6 @@ func NewConnectionHandler(
 		handler.providers.vlllm = providerSet.VLLLM
 		handler.mcpManager = providerSet.MCP
 	}
-	handler.checkDeviceInfo()
 	agent, prompt := handler.InitWithAgent()
 	handler.checkTTSProvider(agent, config) // 检查TTS提供者
 	handler.checkLLMProvider(agent, config) // 检查LLM提供者是否匹配
@@ -243,40 +238,13 @@ func NewConnectionHandler(
 }
 
 func (h *ConnectionHandler) InitWithAgent() (*models.Agent, string) {
-	// 根据agentID获取Agent
-	var agent *models.Agent = nil
-	var err error
-	prompt := h.config.DefaultPrompt
-	if h.agentID != 0 {
-		// 此处不需要事务
-		agent, err = database.GetAgentByID(database.GetDB(), h.agentID)
-		if err != nil {
-			h.LogError(fmt.Sprintf("获取Agent失败: %v", err))
-		}
-		agentName := agent.Name
-		prompt = agent.Prompt // 使用Agent的Prompt
-		if agentName != "" {
-			if strings.Contains(prompt, "{{assistant_name}}") {
-				prompt = strings.Replace(prompt, "{{assistant_name}}", agentName, -1)
-			} else {
-				prompt += "\n\n助手名称: " + agentName
-			}
-		}
-
-		if agent.Language != "" && agent.Language != "普通话" && agent.Language != "中文" {
-			prompt += "\n\n使用 " + agent.Language + " 回答用户的问题。"
-		}
-
-		if agent.EnabledTools != "" {
-			h.enabledTools = strings.Split(agent.EnabledTools, ",")
-		} else {
-			h.enabledTools = []string{} // 没有则不过滤
-		}
-
-		h.LogInfo(fmt.Sprintf("允许的工具: %v", h.enabledTools))
-		h.LogInfo(fmt.Sprintf("使用Agent %d 的Prompt: %s", h.agentID, prompt))
-
+	agent := &models.Agent{ // TODO: 从配置读取
+		Name:   "默认智能体",
+		LLM:    configs.Cfg.SelectedModule["LLM"],
+		Voice:  "zh_female_wanwanxiaohe_moon_bigtts",
+		UserID: 0,
 	}
+	prompt := h.config.DefaultPrompt
 	return agent, prompt
 }
 
@@ -351,7 +319,6 @@ func (h *ConnectionHandler) checkTTSProvider(agent *models.Agent, config *config
 		h.initialVoice = h.voiceName // 保存初始语音名称
 	}
 	h.logger.Info("使用TTS提供者: %s, 语音名称: %s", h.ttsProviderName, h.voiceName)
-
 }
 
 func (h *ConnectionHandler) checkLLMProvider(agent *models.Agent, config *configs.Config) {
@@ -389,7 +356,7 @@ func (h *ConnectionHandler) checkLLMProvider(agent *models.Agent, config *config
 					h.LogError(fmt.Sprintf("反序列化用户 %d 的 LLM 提供者 %s 配置失败: %v", userID, name, err))
 					continue
 				}
-				//h.LogInfo(fmt.Sprintf("用户 %d 的 LLM 提供者: %s, 配置: %v", userID, name, cfg))
+				// h.LogInfo(fmt.Sprintf("用户 %d 的 LLM 提供者: %s, 配置: %v", userID, name, cfg))
 				config.LLM[name] = cfg // 更新配置
 			}
 		} else {
@@ -439,44 +406,6 @@ func (h *ConnectionHandler) checkLLMProvider(agent *models.Agent, config *config
 	}
 }
 
-func (h *ConnectionHandler) checkDeviceInfo() {
-	h.agentID = 0 // 清空AgentID
-
-	if h.deviceID == "" {
-		h.LogError("设备ID未设置，无法检查设备绑定状态")
-		return
-	}
-	device, err := database.FindDeviceByID(database.GetDB(), h.deviceID) // 确保设备存在
-	if err == gorm.ErrRecordNotFound {
-		h.LogError(fmt.Sprintf("查找设备失败: %v", err))
-		return
-	}
-
-	if device.AgentID != nil {
-		h.agentID = *device.AgentID // 获取设备绑定的AgentID
-	} else {
-		// 查询当前agent列表，绑定到第一个agent
-		agents, err := database.ListAgentsByUser(database.GetDB(), database.AdminUserID)
-		if err != nil {
-			h.LogError(fmt.Sprintf("查询智能体失败: %v", err))
-			return
-		}
-		if len(agents) > 0 {
-			h.agentID = agents[0].ID
-			device.AgentID = &h.agentID
-			err = database.UpdateDevice(database.GetDB(), device)
-			if err != nil {
-				h.LogError(fmt.Sprintf("更新设备绑定的智能体失败: %v", err))
-				return
-			}
-		} else {
-			h.agentID = 0 // 未绑定则为0
-		}
-	}
-
-	h.LogInfo(fmt.Sprintf("设备绑定状态: AgentID=%d", h.agentID))
-}
-
 func (h *ConnectionHandler) SetTaskCallback(callback func(func(*ConnectionHandler)) func()) {
 	h.safeCallbackFunc = callback
 }
@@ -515,6 +444,7 @@ func (h *ConnectionHandler) LogInfo(msg string) {
 		})
 	}
 }
+
 func (h *ConnectionHandler) LogDebug(msg string) {
 	if h.logger != nil {
 		h.logger.Debug(msg, map[string]interface{}{
@@ -522,6 +452,7 @@ func (h *ConnectionHandler) LogDebug(msg string) {
 		})
 	}
 }
+
 func (h *ConnectionHandler) LogError(msg string) {
 	if h.logger != nil {
 		h.logger.Error(msg, map[string]interface{}{
@@ -629,7 +560,7 @@ func (h *ConnectionHandler) sendAudioMessageCoroutine() {
 // OnAsrResult 实现 AsrEventListener 接口
 // 返回true则停止语音识别，返回false会继续语音识别
 func (h *ConnectionHandler) OnAsrResult(result string, isFinalResult bool) bool {
-	//h.LogInfo(fmt.Sprintf("[%s] ASR识别结果: %s", h.clientListenMode, result))
+	// h.LogInfo(fmt.Sprintf("[%s] ASR识别结果: %s", h.clientListenMode, result))
 	if h.providers.asr.GetSilenceCount() >= 2 {
 		h.LogInfo("[ASR] [静音检测] 连续两次，结束对话")
 		h.closeAfterChat = true // 如果连续两次静音，则结束对话
@@ -672,7 +603,7 @@ func (h *ConnectionHandler) clientAbortChat() error {
 }
 
 func (h *ConnectionHandler) QuitIntent(text string) bool {
-	//CMD_exit 读取配置中的退出命令
+	// CMD_exit 读取配置中的退出命令
 	exitCommands := h.config.CMDExit
 	if exitCommands == nil {
 		return false
@@ -681,7 +612,7 @@ func (h *ConnectionHandler) QuitIntent(text string) bool {
 	// 检查是否包含退出命令
 	for _, cmd := range exitCommands {
 		h.logger.Debug(fmt.Sprintf("检查退出命令: %s,%s", cmd, cleand_text))
-		//判断相等
+		// 判断相等
 		if cleand_text == cmd {
 			h.LogInfo("[客户端] [退出意图] 收到，准备结束对话")
 			h.Close() // 直接关闭连接
@@ -772,10 +703,10 @@ func (h *ConnectionHandler) genResponseByLLM(ctx context.Context, messages []pro
 	}()
 
 	llmStartTime := time.Now()
-	//h.logger.Info("开始生成LLM回复, round:%d ", round)
+	// h.logger.Info("开始生成LLM回复, round:%d ", round)
 	for _, msg := range messages {
 		_ = msg
-		//msg.Print()
+		// msg.Print()
 	}
 	// 使用LLM生成回复
 	tools := h.functionRegister.GetAllFunctions()
@@ -930,7 +861,7 @@ func (h *ConnectionHandler) genResponseByLLM(ctx context.Context, messages []pro
 
 			} else {
 				// 处理普通函数调用
-				//h.functionRegister.CallFunction(functionName, functionCallData)
+				// h.functionRegister.CallFunction(functionName, functionCallData)
 			}
 		}
 	}
@@ -964,7 +895,6 @@ func (h *ConnectionHandler) genResponseByLLM(ctx context.Context, messages []pro
 }
 
 func (h *ConnectionHandler) addToolCallMessage(toolResultText string, functionCallData map[string]interface{}) {
-
 	functionID := functionCallData["id"].(string)
 	functionName := functionCallData["name"].(string)
 	functionArguments := functionCallData["arguments"].(string)
@@ -1152,7 +1082,6 @@ func (h *ConnectionHandler) processTTSTask(text string, textIndex int, round int
 		ttsSpentTime := now.Sub(ttsStartTime)
 		h.logger.Debug(fmt.Sprintf("TTS转换耗时: %s, 文本: %s, 索引: %d", ttsSpentTime, text, textIndex))
 	}
-
 }
 
 // speakAndPlay 合成并播放语音

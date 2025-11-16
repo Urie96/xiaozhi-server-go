@@ -11,13 +11,10 @@ import (
 	"strings"
 	"time"
 	"xiaozhi-server-go/src/configs"
-	"xiaozhi-server-go/src/configs/database"
 	"xiaozhi-server-go/src/core/utils"
-	"xiaozhi-server-go/src/httpsvr/webapi"
 	"xiaozhi-server-go/src/models"
 
 	"github.com/gin-gonic/gin"
-	"gorm.io/gorm"
 )
 
 // OtaFirmwareResponse 定义OTA固件接口返回结构
@@ -274,76 +271,31 @@ func (s *DefaultOTAService) handlePostOTA(c *gin.Context) {
 
 	c.JSON(http.StatusOK, resp)
 }
+
 func (s *DefaultOTAService) CheckAndUpdateDevice(
 	c *gin.Context,
 	cfg *configs.Config,
 	req OTARequestBody,
 	deviceID, clientID, deviceName, version string,
 ) *models.Device {
-	var resultDevice *models.Device
-	webapi.WithTx(c, func(tx *gorm.DB) error {
-		// 查询 设备是否已注册
-		device, err := database.FindDeviceByID(tx, deviceID) // 确保设备存在
-		if err != nil {
-			if device == nil {
-				// 检查是否是被软删除的设备
-				deleteDevice, err := database.FindDeletedDeviceByID(tx, deviceID)
-				if err != nil && err != gorm.ErrRecordNotFound {
-					utils.DefaultLogger.Error("查询已删除设备失败: %v", err)
-				}
-				if deleteDevice != nil {
-					// 硬删除
-					if err := database.HardDeleteDevice(tx, deleteDevice.DeviceID); err != nil {
-						utils.DefaultLogger.Error("硬删除设备失败: %s, %v", deviceID, err)
-						c.JSON(
-							http.StatusInternalServerError,
-							gin.H{"success": false, "message": "设备状态异常，请联系管理员" + err.Error()},
-						)
-						return err
-					}
-				}
-			}
-
-			device = &models.Device{
-				DeviceID:         deviceID,   // 设置设备ID
-				ClientID:         clientID,   // 设置客户端ID
-				Name:             deviceName, // 设置设备名称
-				Version:          version,    // 设置设备版本
-				RegisterTimeV2:   time.Now(),
-				LastActiveTimeV2: time.Now(),
-				BoardType:        req.Board.Type,    // 设置主板类型
-				ChipModelName:    req.ChipModelName, // 设置芯片型号
-				Channel:          req.Board.Channel, // 设置WiFi频道
-				SSID:             req.Board.SSID,    // 设置WiFi SSID
-				Language:         req.Language,      // 设置语言
-				OTA:              true,              // 设置支持OTA升级
-				AgentID:          nil,               // 初始AgentID为nil
-			}
-			appBytes, _ := json.Marshal(req.Application)
-			device.Application = string(appBytes)
-			if err := database.AddDevice(tx, device); err != nil { // 保存设备信息
-				utils.DefaultLogger.Error("保存设备信息失败: %v", err)
-				c.JSON(
-					http.StatusInternalServerError,
-					gin.H{"success": false, "message": "保存设备信息失败: " + err.Error()},
-				)
-				return err
-			} else {
-				utils.DefaultLogger.Info("新设备注册成功: %s", deviceID)
-			}
-		}
-
-		appBytes, _ := json.Marshal(req.Application)
-		if device.Application != string(appBytes) {
-			device.Application = string(appBytes) // 更新应用信息
-			if err := database.UpdateDevice(tx, device); err != nil {
-				utils.DefaultLogger.Error("更新设备应用信息失败: %v", err)
-			}
-		}
-		resultDevice = device
-		return nil
-	})
-	return resultDevice
+	device := &models.Device{
+		DeviceID:         deviceID,   // 设置设备ID
+		ClientID:         clientID,   // 设置客户端ID
+		Name:             deviceName, // 设置设备名称
+		Version:          version,    // 设置设备版本
+		RegisterTimeV2:   time.Now(),
+		LastActiveTimeV2: time.Now(),
+		BoardType:        req.Board.Type,    // 设置主板类型
+		ChipModelName:    req.ChipModelName, // 设置芯片型号
+		Channel:          req.Board.Channel, // 设置WiFi频道
+		SSID:             req.Board.SSID,    // 设置WiFi SSID
+		Language:         req.Language,      // 设置语言
+		OTA:              true,              // 设置支持OTA升级
+		AgentID:          nil,               // 初始AgentID为nil
+	}
+	appBytes, _ := json.Marshal(req.Application)
+	device.Application = string(appBytes)
+	return device
 }
 
 // HandleFirmwareDownload 处理 /ota_bin/:filename 下载
@@ -366,7 +318,7 @@ func (s *DefaultOTAService) HandleFirmwareDownload() gin.HandlerFunc {
 		}
 
 		p := filepath.Join("ota_bin", filepath.FromSlash(clean))
-		//fmt.Println("Firmware download requested:", clean, "full path:", p)
+		// fmt.Println("Firmware download requested:", clean, "full path:", p)
 
 		fi, err := os.Stat(p)
 		if err != nil || fi.IsDir() {

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 	"time"
-
 	"xiaozhi-server-go/src/configs"
 	"xiaozhi-server-go/src/models"
 
@@ -105,7 +104,6 @@ func InitDB() (*gorm.DB, string, error) {
 	dbType = "sqlite"
 	path := "./config.db"
 	db, err = gorm.Open(sqlite.Open(path))
-
 	if err != nil {
 		return nil, "", fmt.Errorf("连接数据库失败: %w", err)
 	}
@@ -149,9 +147,6 @@ func migrateTables(db *gorm.DB) error {
 // InsertDefaultConfigIfNeeded 首次启动插入默认配置
 func InsertDefaultConfigIfNeeded(db *gorm.DB) error {
 	config := configs.Cfg
-	if err := InitProviders(db, config); err != nil {
-		return fmt.Errorf("初始化提供者配置失败: %v", err)
-	}
 	if err := InitAdminUser(db, config); err != nil {
 		return fmt.Errorf("初始化管理员用户失败: %v", err)
 	}
