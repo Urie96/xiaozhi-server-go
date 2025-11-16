@@ -64,7 +64,7 @@ func (tm *TaskManager) submitImmediateTask(clientID string, task *Task) error {
 		return err
 	}
 
-	task.ClinetID = clientID
+	task.ClientID = clientID
 
 	// 提交到工作池，失败时回滚
 	if err := tm.workerPool.Submit(task); err != nil {

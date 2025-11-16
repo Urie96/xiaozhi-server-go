@@ -191,12 +191,12 @@ func (p *Provider) generateHeader(
 }
 
 // constructRequest 构造请求数据
-func (p *Provider) constructRequest() map[string]interface{} {
-	return map[string]interface{}{
-		"user": map[string]interface{}{
+func (p *Provider) constructRequest() map[string]any {
+	return map[string]any{
+		"user": map[string]any{
 			"uid": p.reqID,
 		},
-		"audio": map[string]interface{}{
+		"audio": map[string]any{
 			"format": "pcm",
 			//"codec":    "opus", // 默认raw音频格式
 			"rate":     16000,
@@ -204,7 +204,7 @@ func (p *Provider) constructRequest() map[string]interface{} {
 			"channel":  1,
 			"language": "zh-CN", // Added language as per doc example
 		},
-		"request": map[string]interface{}{
+		"request": map[string]any{
 			"model_name":      p.modelName,
 			"end_window_size": p.endWindowSize,
 			"enable_punc":     p.enablePunc,
@@ -252,7 +252,7 @@ type AsrResponse struct {
 }
 
 // parseResponse 解析响应数据
-func (p *Provider) parseResponse(data []byte) (map[string]interface{}, error) {
+func (p *Provider) parseResponse(data []byte) (map[string]any, error) {
 	if len(data) < 4 {
 		return nil, fmt.Errorf("响应数据太短")
 	}
@@ -273,7 +273,7 @@ func (p *Provider) parseResponse(data []byte) (map[string]interface{}, error) {
 	} else {
 		payload = data[headerSize*4:]
 	}
-	result := make(map[string]interface{})
+	result := make(map[string]any)
 
 	if messageTypeSpecificFlags&0x01 != 0 {
 		asr_result.PayloadSequence = int32(binary.BigEndian.Uint32(payload[:4]))
@@ -359,7 +359,7 @@ func (p *Provider) parseResponse(data []byte) (map[string]interface{}, error) {
 		}
 
 		if serializationMethod == jsonFormat {
-			var jsonData map[string]interface{}
+			var jsonData map[string]any
 			if err := json.Unmarshal(payloadMsg, &jsonData); err != nil {
 				return nil, fmt.Errorf("解析JSON响应失败: %v", err)
 			}
@@ -515,7 +515,7 @@ func (p *Provider) StartStreaming(ctx context.Context) error {
 	}
 
 	// 检查初始响应状态
-	if msg, ok := initialResult["payload_msg"].(map[string]interface{}); ok {
+	if msg, ok := initialResult["payload_msg"].(map[string]any); ok {
 		// Doubao ASR v3 uses 20000000 for success code in initial response
 		if code, ok := msg["code"].(float64); ok && int(code) != 20000000 {
 			return fmt.Errorf("ASR初始化错误: %v", msg)
@@ -581,9 +581,9 @@ func (p *Provider) ReadMessage() {
 		}
 
 		// 处理正常响应
-		if payloadMsg, ok := result["payload_msg"].(map[string]interface{}); ok {
+		if payloadMsg, ok := result["payload_msg"].(map[string]any); ok {
 			// 检查是否有 result 字段（正常响应）
-			if resultData, hasResult := payloadMsg["result"].(map[string]interface{}); hasResult {
+			if resultData, hasResult := payloadMsg["result"].(map[string]any); hasResult {
 				// 提取文本结果
 				text := ""
 				if textData, hasText := resultData["text"].(string); hasText {

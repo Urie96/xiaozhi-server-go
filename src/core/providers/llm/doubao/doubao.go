@@ -27,7 +27,7 @@ type Provider struct {
 // doubaoRequest 自定义请求结构体,支持thinking参数
 type doubaoRequest struct {
 	Model       string                          `json:"model"`
-	Messages    []map[string]interface{}        `json:"messages"`
+	Messages    []map[string]any        `json:"messages"`
 	Stream      bool                            `json:"stream"`
 	MaxTokens   int                             `json:"max_tokens,omitempty"`
 	Temperature float64                         `json:"temperature,omitempty"`
@@ -113,9 +113,9 @@ func (p *Provider) Response(ctx context.Context, sessionID string, messages []ty
 		defer close(responseChan)
 
 		// 转换消息格式
-		reqMessages := make([]map[string]interface{}, len(messages))
+		reqMessages := make([]map[string]any, len(messages))
 		for i, msg := range messages {
-			reqMessages[i] = map[string]interface{}{
+			reqMessages[i] = map[string]any{
 				"role":    msg.Role,
 				"content": msg.Content,
 			}
@@ -224,9 +224,9 @@ func (p *Provider) ResponseWithFunctions(ctx context.Context, sessionID string, 
 		defer close(responseChan)
 
 		// 转换消息格式
-		reqMessages := make([]map[string]interface{}, len(messages))
+		reqMessages := make([]map[string]any, len(messages))
 		for i, msg := range messages {
-			msgMap := map[string]interface{}{
+			msgMap := map[string]any{
 				"role":    msg.Role,
 				"content": msg.Content,
 			}
@@ -238,12 +238,12 @@ func (p *Provider) ResponseWithFunctions(ctx context.Context, sessionID string, 
 
 			// 处理tool_calls字段（assistant消息中的工具调用）
 			if len(msg.ToolCalls) > 0 {
-				toolCalls := make([]map[string]interface{}, len(msg.ToolCalls))
+				toolCalls := make([]map[string]any, len(msg.ToolCalls))
 				for j, tc := range msg.ToolCalls {
-					toolCalls[j] = map[string]interface{}{
+					toolCalls[j] = map[string]any{
 						"id":   tc.ID,
 						"type": tc.Type,
-						"function": map[string]interface{}{
+						"function": map[string]any{
 							"name":      tc.Function.Name,
 							"arguments": tc.Function.Arguments,
 						},

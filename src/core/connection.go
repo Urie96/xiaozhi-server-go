@@ -23,7 +23,6 @@ import (
 	"xiaozhi-server-go/src/core/providers/vlllm"
 	"xiaozhi-server-go/src/core/types"
 	"xiaozhi-server-go/src/core/utils"
-	"xiaozhi-server-go/src/models"
 	"xiaozhi-server-go/src/task"
 
 	"github.com/google/uuid"
@@ -141,7 +140,7 @@ type ConnectionHandler struct {
 	functionRegister *function.FunctionRegistry
 	mcpManager       *mcp.Manager
 
-	mcpResultHandlers map[string]func(interface{}) // MCP处理器映射
+	mcpResultHandlers map[string]func(any) // MCP处理器映射
 	ctx               context.Context
 }
 
@@ -232,28 +231,17 @@ func NewConnectionHandler(
 	return handler
 }
 
-func (h *ConnectionHandler) InitWithAgent() (*models.Agent, string) {
-	agent := &models.Agent{ // TODO: 从配置读取
-		Name:   "默认智能体",
-		LLM:    configs.Cfg.SelectedModule["LLM"],
-		Voice:  "zh_female_wanwanxiaohe_moon_bigtts",
-		UserID: 0,
-	}
-	prompt := h.config.DefaultPrompt
-	return agent, prompt
-}
-
 func (h *ConnectionHandler) SetTaskCallback(callback func(func(*ConnectionHandler)) func()) {
 	h.safeCallbackFunc = callback
 }
 
-func (h *ConnectionHandler) SubmitTask(taskType string, params map[string]interface{}) {
+func (h *ConnectionHandler) SubmitTask(taskType string, params map[string]any) {
 	_task, id := task.NewTask(h.ctx, "", params)
 	h.LogInfo(fmt.Sprintf("提交任务: %s, ID: %s, 参数: %v", _task.Type, id, params))
 	// 创建安全回调用于任务完成时调用
-	var taskCallback func(result interface{})
+	var taskCallback func(result any)
 	if h.safeCallbackFunc != nil {
-		taskCallback = func(result interface{}) {
+		taskCallback = func(result any) {
 			fmt.Print("任务完成回调: ")
 			safeCallback := h.safeCallbackFunc(func(handler *ConnectionHandler) {
 				// 处理任务完成逻辑
@@ -270,13 +258,13 @@ func (h *ConnectionHandler) SubmitTask(taskType string, params map[string]interf
 	h.taskMgr.SubmitTask(h.sessionID, _task)
 }
 
-func (h *ConnectionHandler) handleTaskComplete(task *task.Task, id string, result interface{}) {
+func (h *ConnectionHandler) handleTaskComplete(task *task.Task, id string, result any) {
 	h.LogInfo(fmt.Sprintf("任务 %s 完成，ID: %s, %v", task.Type, id, result))
 }
 
 func (h *ConnectionHandler) LogInfo(msg string) {
 	if h.logger != nil {
-		h.logger.Info(msg, map[string]interface{}{
+		h.logger.Info(msg, map[string]any{
 			"device": h.deviceID,
 		})
 	}
@@ -284,7 +272,7 @@ func (h *ConnectionHandler) LogInfo(msg string) {
 
 func (h *ConnectionHandler) LogDebug(msg string) {
 	if h.logger != nil {
-		h.logger.Debug(msg, map[string]interface{}{
+		h.logger.Debug(msg, map[string]any{
 			"device": h.deviceID,
 		})
 	}
@@ -292,7 +280,7 @@ func (h *ConnectionHandler) LogDebug(msg string) {
 
 func (h *ConnectionHandler) LogError(msg string) {
 	if h.logger != nil {
-		h.logger.Error(msg, map[string]interface{}{
+		h.logger.Error(msg, map[string]any{
 			"device": h.deviceID,
 		})
 	}
@@ -318,7 +306,7 @@ func (h *ConnectionHandler) Handle(conn Connection) {
 	} else {
 		h.LogInfo("[MCP] [管理器] 使用资源池快速绑定连接")
 		// 池化的管理器已经预初始化，只需要绑定连接
-		params := map[string]interface{}{
+		params := map[string]any{
 			"session_id": h.sessionID,
 			"vision_url": h.config.Web.VisionURL,
 			"device_id":  h.deviceID,
@@ -442,12 +430,12 @@ func (h *ConnectionHandler) clientAbortChat() error {
 func (h *ConnectionHandler) QuitIntent(text string) bool {
 	// CMD_exit 读取配置中的退出命令
 	exitCommands := []string{"退出", "关闭"}
-	cleand_text := utils.RemoveAllPunctuation(text) // 移除标点符号，确保匹配准确
+	cleanText := utils.RemoveAllPunctuation(text) // 移除标点符号，确保匹配准确
 	// 检查是否包含退出命令
 	for _, cmd := range exitCommands {
-		h.logger.Debug(fmt.Sprintf("检查退出命令: %s,%s", cmd, cleand_text))
+		h.logger.Debug(fmt.Sprintf("检查退出命令: %s,%s", cmd, cleanText))
 		// 判断相等
-		if cleand_text == cmd {
+		if cleanText == cmd {
 			h.LogInfo("[客户端] [退出意图] 收到，准备结束对话")
 			h.Close() // 直接关闭连接
 			return true
@@ -662,11 +650,11 @@ func (h *ConnectionHandler) genResponseByLLM(ctx context.Context, messages []pro
 		if !bHasError {
 			// 清空responseMessage
 			responseMessage = []string{}
-			arguments := make(map[string]interface{})
+			arguments := make(map[string]any)
 			if err := json.Unmarshal([]byte(functionArguments), &arguments); err != nil {
 				h.LogError(fmt.Sprintf("函数调用参数解析失败: %v", err))
 			}
-			functionCallData := map[string]interface{}{
+			functionCallData := map[string]any{
 				"id":        functionID,
 				"name":      functionName,
 				"arguments": functionArguments,
@@ -728,7 +716,7 @@ func (h *ConnectionHandler) genResponseByLLM(ctx context.Context, messages []pro
 	return nil
 }
 
-func (h *ConnectionHandler) addToolCallMessage(toolResultText string, functionCallData map[string]interface{}) {
+func (h *ConnectionHandler) addToolCallMessage(toolResultText string, functionCallData map[string]any) {
 	functionID := functionCallData["id"].(string)
 	functionName := functionCallData["name"].(string)
 	functionArguments := functionCallData["arguments"].(string)
@@ -763,7 +751,7 @@ func (h *ConnectionHandler) addToolCallMessage(toolResultText string, functionCa
 	})
 }
 
-func (h *ConnectionHandler) handleFunctionResult(result types.ActionResponse, functionCallData map[string]interface{}, textIndex int) {
+func (h *ConnectionHandler) handleFunctionResult(result types.ActionResponse, functionCallData map[string]any, textIndex int) {
 	switch result.Action {
 	case types.ActionTypeError:
 		h.LogError(fmt.Sprintf("函数调用错误: %v", result.Result))
@@ -806,11 +794,6 @@ func (h *ConnectionHandler) SystemSpeak(text string) error {
 		h.SpeakAndPlay(item, index, h.talkRound)
 	}
 	return nil
-}
-
-// isNeedAuth 判断是否需要验证
-func (h *ConnectionHandler) isNeedAuth() bool {
-	return !h.isDeviceVerified
 }
 
 // processTTSQueueCoroutine 处理TTS队列
@@ -1023,7 +1006,7 @@ func (h *ConnectionHandler) Close() {
 
 // genResponseByVLLM 使用VLLLM处理包含图片的消息
 func (h *ConnectionHandler) genResponseByVLLM(ctx context.Context, messages []providers.Message, imageData image.ImageData, text string, round int) error {
-	h.logger.Info("开始生成VLLLM回复 %v", map[string]interface{}{
+	h.logger.Info("开始生成VLLLM回复 %v", map[string]any{
 		"text":          text,
 		"has_url":       imageData.URL != "",
 		"has_data":      imageData.Data != "",
@@ -1087,7 +1070,7 @@ func (h *ConnectionHandler) genResponseByVLLM(ctx context.Context, messages []pr
 		Content: content,
 	})
 
-	h.LogInfo(fmt.Sprintf("VLLLM回复处理完成 …%v", map[string]interface{}{
+	h.LogInfo(fmt.Sprintf("VLLLM回复处理完成 …%v", map[string]any{
 		"content_length": len(content),
 		"text_segments":  textIndex,
 	}))

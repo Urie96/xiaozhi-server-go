@@ -51,7 +51,7 @@ func NewWorkerPool(
 // initWorkerTypes initializes worker pools for different task types
 func (wp *WorkerPool) initWorkers() {
 	wp.workers = make([]*Worker, wp.config.MaxWorkers)
-	for i := 0; i < wp.config.MaxWorkers; i++ {
+	for i := range wp.config.MaxWorkers {
 		worker := newWorker(fmt.Sprintf("worker-%d", i), wp)
 		wp.workers[i] = worker
 		// 初始化时所有工作者都是空闲的
@@ -106,21 +106,6 @@ func (wp *WorkerPool) distributeItems() {
 	}
 }
 
-// 新增一个安全地重新排队的方法
-func (wp *WorkerPool) requeueTask(task *Task) {
-	select {
-	case wp.taskQueue <- task:
-		// 成功加入队列
-	default:
-		// 队列已满，处理这种情况
-		// 可以记录日志，或尝试其他策略
-		if task.Callback != nil {
-			task.Error = fmt.Errorf("task queue is full, cannot process task")
-			task.Callback.OnError(task.Error)
-		}
-	}
-}
-
 // assignTask assigns a task to an available worker
 func (wp *WorkerPool) assignTask(task *Task) {
 	// 检查是否有注册的执行器
@@ -140,8 +125,8 @@ func (wp *WorkerPool) assignTask(task *Task) {
 		// 超时处理：直接失败，不重排队
 		task.Status = TaskStatusFailed
 		task.Error = fmt.Errorf("no available workers within timeout")
-		if task.ClinetID != "" && wp.clientManager != nil {
-			if ctx, err := wp.clientManager.GetClientContext(task.ClinetID); err == nil {
+		if task.ClientID != "" && wp.clientManager != nil {
+			if ctx, err := wp.clientManager.GetClientContext(task.ClientID); err == nil {
 				ctx.ResourceQuota.DecrementQuota(task.Type)
 				ctx.ResourceQuota.CompleteTask(task.Type)
 			}
@@ -194,8 +179,8 @@ func (w *Worker) executeTask(task *Task) {
 		w.status = WorkerStatusIdle
 		w.pool.workerFinished(w)
 		// 任务完成，减少并发计数
-		if task.ClinetID != "" && w.pool.clientManager != nil {
-			if ctx, err := w.pool.clientManager.GetClientContext(task.ClinetID); err == nil {
+		if task.ClientID != "" && w.pool.clientManager != nil {
+			if ctx, err := w.pool.clientManager.GetClientContext(task.ClientID); err == nil {
 				ctx.ResourceQuota.CompleteTask(task.Type)
 			}
 		}

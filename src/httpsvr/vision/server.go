@@ -165,7 +165,7 @@ func (s *DefaultVisionService) handlePost(c *gin.Context) {
 		return
 	}
 
-	s.logger.Debug("收到Vision分析请求 %v", map[string]interface{}{
+	s.logger.Debug("收到Vision分析请求 %v", map[string]any{
 		"device_id":  req.DeviceID,
 		"client_id":  req.ClientID,
 		"question":   req.Question,

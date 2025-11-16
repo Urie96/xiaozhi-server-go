@@ -20,12 +20,12 @@ func (h *ConnectionHandler) sendHelloMessage() error {
 		return fmt.Errorf("配置对象未初始化")
 	}
 
-	hello := make(map[string]interface{})
+	hello := make(map[string]any)
 	hello["type"] = "hello"
 	hello["version"] = 1
 	hello["transport"] = "websocket"
 	hello["session_id"] = h.sessionID
-	hello["audio_params"] = map[string]interface{}{
+	hello["audio_params"] = map[string]any{
 		"format":         h.serverAudioFormat,
 		"sample_rate":    h.serverAudioSampleRate,
 		"channels":       h.serverAudioChannels,
@@ -41,7 +41,7 @@ func (h *ConnectionHandler) sendHelloMessage() error {
 
 func (h *ConnectionHandler) sendTTSMessage(state string, text string, textIndex int) error {
 	// 发送TTS状态结束通知
-	stateMsg := map[string]interface{}{
+	stateMsg := map[string]any{
 		"type":        "tts",
 		"state":       state,
 		"session_id":  h.sessionID,
@@ -60,7 +60,7 @@ func (h *ConnectionHandler) sendTTSMessage(state string, text string, textIndex 
 }
 
 func (h *ConnectionHandler) sendSTTMessage(text string) error {
-	sttMsg := map[string]interface{}{
+	sttMsg := map[string]any{
 		"type":       "stt",
 		"text":       text,
 		"session_id": h.sessionID,
@@ -78,7 +78,7 @@ func (h *ConnectionHandler) sendSTTMessage(text string) error {
 
 // sendEmotionMessage 发送情绪消息
 func (h *ConnectionHandler) sendEmotionMessage(emotion string) error {
-	data := map[string]interface{}{
+	data := map[string]any{
 		"type":       "llm",
 		"text":       utils.GetEmotionEmoji(emotion),
 		"emotion":    emotion,
@@ -185,14 +185,11 @@ func (h *ConnectionHandler) sendAudioFrames(audioData [][]byte, text string, rou
 	playPosition := 0 // 播放位置（毫秒）
 
 	// 预缓冲：发送前几帧，提升播放流畅度
-	preBufferFrames := 3
-	if len(audioData) < preBufferFrames {
-		preBufferFrames = len(audioData)
-	}
+	preBufferFrames := min(len(audioData), 3)
 	preBufferTime := time.Duration(h.serverAudioFrameDuration*preBufferFrames) * time.Millisecond // 预缓冲时间（毫秒）
 
 	// 发送预缓冲帧
-	for i := 0; i < preBufferFrames; i++ {
+	for i := range preBufferFrames {
 		// 检查是否被打断
 		if atomic.LoadInt32(&h.serverVoiceStop) == 1 || round != h.talkRound {
 			h.LogInfo(fmt.Sprintf("音频发送被中断(预缓冲阶段): 帧=%d/%d, 文本=%s", i+1, preBufferFrames, text))

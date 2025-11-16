@@ -68,18 +68,18 @@ type Task struct {
 	ID            string
 	Type          TaskType
 	Status        TaskStatus
-	Params        interface{}
-	Result        interface{}
+	Params        any
+	Result        any
 	Error         error
 	ScheduledTime *time.Time
 	Callback      TaskCallback
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
-	ClinetID      string
+	ClientID      string
 	Context       context.Context
 }
 
-func NewTask(ctx context.Context, taskType TaskType, params interface{}) (task *Task, id string) {
+func NewTask(ctx context.Context, taskType TaskType, params any) (task *Task, id string) {
 	id = uuid.New().String()
 	return &Task{
 		ID:        id,
@@ -138,7 +138,7 @@ func (t *Task) Execute() {
 
 // TaskCallback defines the interface for task completion handling
 type TaskCallback interface {
-	OnComplete(result interface{})
+	OnComplete(result any)
 	OnError(err error)
 }
 

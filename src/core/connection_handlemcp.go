@@ -12,7 +12,7 @@ import (
 func (h *ConnectionHandler) initMCPResultHandlers() {
 	// 初始化MCP结果处理器
 	// 这里可以添加更多的处理器初始化逻辑
-	h.mcpResultHandlers = map[string]func(args interface{}){
+	h.mcpResultHandlers = map[string]func(args any){
 		"mcp_handler_exit":         h.mcp_handler_exit,
 		"mcp_handler_take_photo":   h.mcp_handler_take_photo,
 		"mcp_handler_change_voice": h.mcp_handler_change_voice,
@@ -43,12 +43,12 @@ func (h *ConnectionHandler) handleMCPResultCall(result types.ActionResponse) str
 			h.logger.Error("handleMCPResultCall: no handler found for function %s", Caller.FuncName)
 		}
 	} else {
-		h.logger.Error("handleMCPResultCall: result.Result is not a map[string]interface{}")
+		h.logger.Error("handleMCPResultCall: result.Result is not a map[string]any")
 	}
 	return errResult
 }
 
-func (h *ConnectionHandler) mcp_handler_play_music(args interface{}) {
+func (h *ConnectionHandler) mcp_handler_play_music(args any) {
 	if songName, ok := args.(string); ok {
 		h.logger.Info("mcp_handler_play_music: %s", songName)
 		if path, name, err := utils.GetMusicFilePathFuzzy(songName); err != nil {
@@ -63,7 +63,7 @@ func (h *ConnectionHandler) mcp_handler_play_music(args interface{}) {
 	}
 }
 
-func (h *ConnectionHandler) mcp_handler_change_voice(args interface{}) {
+func (h *ConnectionHandler) mcp_handler_change_voice(args any) {
 	if voice, ok := args.(string); ok {
 		h.logger.Info("mcp_handler_change_voice: %s", voice)
 		if err, voiceName := h.providers.tts.SetVoice(voice); err != nil {
@@ -78,7 +78,7 @@ func (h *ConnectionHandler) mcp_handler_change_voice(args interface{}) {
 	}
 }
 
-func (h *ConnectionHandler) mcp_handler_change_role(args interface{}) {
+func (h *ConnectionHandler) mcp_handler_change_role(args any) {
 	if params, ok := args.(map[string]string); ok {
 		role := params["role"]
 		prompt := params["prompt"]
@@ -104,7 +104,7 @@ func (h *ConnectionHandler) mcp_handler_change_role(args interface{}) {
 	}
 }
 
-func (h *ConnectionHandler) mcp_handler_exit(args interface{}) {
+func (h *ConnectionHandler) mcp_handler_exit(args any) {
 	if text, ok := args.(string); ok {
 		h.closeAfterChat = true
 		h.SystemSpeak(text)
@@ -113,7 +113,7 @@ func (h *ConnectionHandler) mcp_handler_exit(args interface{}) {
 	}
 }
 
-func (h *ConnectionHandler) mcp_handler_take_photo(args interface{}) {
+func (h *ConnectionHandler) mcp_handler_take_photo(args any) {
 	// 特殊处理拍照函数，解析为VisionResponse
 	resultStr, _ := args.(string)
 	var visionResponse vision.VisionResponse

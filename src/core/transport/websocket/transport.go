@@ -68,7 +68,7 @@ func (t *WebSocketTransport) Stop() error {
 		t.logger.Info("WebSocket传输层...")
 
 		// 关闭所有活动连接
-		t.activeConnections.Range(func(key, value interface{}) bool {
+		t.activeConnections.Range(func(key, value any) bool {
 			if handler, ok := value.(transport.ConnectionHandler); ok {
 				handler.Close()
 			}
@@ -89,7 +89,7 @@ func (t *WebSocketTransport) SetConnectionHandler(handler transport.ConnectionHa
 // GetActiveConnectionCount 获取活跃连接数
 func (t *WebSocketTransport) GetActiveConnectionCount() (int, int) {
 	count := 0
-	t.activeConnections.Range(func(key, value interface{}) bool {
+	t.activeConnections.Range(func(key, value any) bool {
 		count++
 		return true
 	})

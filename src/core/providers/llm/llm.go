@@ -15,7 +15,7 @@ type Config struct {
 	Temperature float64                `yaml:"temperature,omitempty"`
 	MaxTokens   int                    `yaml:"max_tokens,omitempty"`
 	TopP        float64                `yaml:"top_p,omitempty"`
-	Extra       map[string]interface{} `yaml:",inline"`
+	Extra       map[string]any `yaml:",inline"`
 }
 
 // Provider LLM提供者接口

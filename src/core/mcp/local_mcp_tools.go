@@ -21,7 +21,7 @@ func (c *LocalClient) AddToolExit() error {
 	c.AddTool("exit",
 		"当用户想结束对话或需要退出系统时调用",
 		InputSchema,
-		func(ctx context.Context, args map[string]any) (interface{}, error) {
+		func(ctx context.Context, args map[string]any) (any, error) {
 			c.logger.Info("用户请求退出对话，告别语：%s", args["say_goodbye"])
 			res := types.ActionResponse{
 				Action: types.ActionTypeCallHandler, // 动作类型
@@ -46,7 +46,7 @@ func (c *LocalClient) AddToolTime() error {
 	c.AddTool("get_time",
 		"获取今天日期或者当前时间信息时调用",
 		InputSchema,
-		func(ctx context.Context, args map[string]any) (interface{}, error) {
+		func(ctx context.Context, args map[string]any) (any, error) {
 			now := time.Now()
 			time := now.Format("2006-01-02 15点04分05秒")
 			week := now.Weekday().String()
@@ -92,7 +92,7 @@ func (c *LocalClient) AddToolChangeRole() error {
 	c.AddTool("change_role",
 		"当用户想切换角色/模型性格/助手名字时调用,可选的角色有：["+roleNames+"]",
 		InputSchema,
-		func(ctx context.Context, args map[string]any) (interface{}, error) {
+		func(ctx context.Context, args map[string]any) (any, error) {
 			role := args["role"].(string)
 			res := types.ActionResponse{
 				Action: types.ActionTypeCallHandler, // 动作类型
@@ -125,7 +125,7 @@ func (c *LocalClient) AddToolPlayMusic() error {
 	c.AddTool("play_music",
 		"当用户想要播放音乐/听歌/唱歌时调用",
 		InputSchema,
-		func(ctx context.Context, args map[string]any) (interface{}, error) {
+		func(ctx context.Context, args map[string]any) (any, error) {
 			song_name := args["song_name"].(string)
 			res := types.ActionResponse{
 				Action: types.ActionTypeCallHandler, // 动作类型
@@ -159,7 +159,7 @@ func (c *LocalClient) AddToolSwitchAgent() error {
 	c.AddTool("switch_agent",
 		"当用户想切换智能体时调用，必须提供agent_id（数字）或agent_name（字符串）其中之一",
 		InputSchema,
-		func(ctx context.Context, args map[string]any) (interface{}, error) {
+		func(ctx context.Context, args map[string]any) (any, error) {
 			// 验证至少提供了一个参数
 			if _, hasID := args["agent_id"]; !hasID {
 				if _, hasName := args["agent_name"]; !hasName {

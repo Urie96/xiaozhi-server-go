@@ -3,16 +3,15 @@ package stepfun
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
 	"sync"
 	"time"
-
 	"xiaozhi-server-go/src/core/providers/asr"
 	"xiaozhi-server-go/src/core/utils"
 
-	"github.com/bytedance/sonic"
 	"github.com/gorilla/websocket"
 )
 
@@ -162,16 +161,16 @@ func (p *Provider) StartStreaming(ctx context.Context) error {
 	p.connMutex.Unlock()
 
 	// 发送 session.update
-	sessionPayload := map[string]interface{}{
+	sessionPayload := map[string]any{
 		"event_id": fmt.Sprintf("event_%d", time.Now().UnixNano()),
 		"type":     "session.update",
-		"session": map[string]interface{}{
+		"session": map[string]any{
 			"modalities":          []string{"text", "audio"},
 			"instructions":        p.prompt,
 			"voice":               p.voice,
 			"input_audio_format":  "pcm16",
 			"output_audio_format": "pcm16",
-			"turn_detection": map[string]interface{}{
+			"turn_detection": map[string]any{
 				"type":                       "server_vad",
 				"energy_awakeness_threshold": 100, // 放大激活阈值
 			},
@@ -194,7 +193,7 @@ func (p *Provider) StartStreaming(ctx context.Context) error {
 func (p *Provider) sendAppendAudio(data []byte) error {
 	// 将PCM16字节编码为Base64
 	encoded := base64.StdEncoding.EncodeToString(data)
-	payload := map[string]interface{}{
+	payload := map[string]any{
 		"event_id": fmt.Sprintf("event_%d", time.Now().UnixNano()),
 		"type":     "input_audio_buffer.append",
 		"audio":    encoded,
@@ -203,14 +202,14 @@ func (p *Provider) sendAppendAudio(data []byte) error {
 	return p.sendJSON(payload)
 }
 
-func (p *Provider) sendJSON(v interface{}) error {
+func (p *Provider) sendJSON(v any) error {
 	p.connMutex.Lock()
 	defer p.connMutex.Unlock()
 
 	if p.conn == nil {
 		return fmt.Errorf("WebSocket连接不存在")
 	}
-	bytes, err := sonic.Marshal(v)
+	bytes, err := json.Marshal(v)
 	if err != nil {
 		return err
 	}
@@ -250,7 +249,7 @@ func (p *Provider) readLoop() {
 			continue
 		}
 
-		if err := sonic.Unmarshal(data, &baseEvent); err != nil {
+		if err := json.Unmarshal(data, &baseEvent); err != nil {
 			p.setErrorAndStop(fmt.Errorf("解析服务端事件失败: %v", err))
 			return
 		}
@@ -259,7 +258,7 @@ func (p *Provider) readLoop() {
 		switch baseEvent.Type {
 		case "error":
 			e := ErrorEvent{}
-			if err := sonic.Unmarshal(data, &e); err != nil {
+			if err := json.Unmarshal(data, &e); err != nil {
 				p.logger.Error("解析服务端事件失败: %v", err)
 				return
 			}
@@ -267,7 +266,7 @@ func (p *Provider) readLoop() {
 			return
 		case "session.created":
 			e := SessionCreatedEvent{}
-			if err := sonic.Unmarshal(data, &e); err != nil {
+			if err := json.Unmarshal(data, &e); err != nil {
 				p.logger.Error("解析服务端事件失败: %v", err)
 				return
 			}
@@ -277,7 +276,7 @@ func (p *Provider) readLoop() {
 			continue
 		case "conversation.item.input_audio_transcription.completed":
 			e := ConversationItemInputAudioTranscriptionCompletedEvent{}
-			if err := sonic.Unmarshal(data, &e); err != nil {
+			if err := json.Unmarshal(data, &e); err != nil {
 				p.logger.Error("解析服务端事件失败: %v", err)
 				return
 			}

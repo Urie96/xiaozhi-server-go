@@ -12,7 +12,7 @@ import (
 type Config struct {
 	Name string `yaml:"name"` // ASR提供者名称
 	Type string
-	Data map[string]interface{}
+	Data map[string]any
 }
 
 // Provider ASR提供者接口
@@ -37,7 +37,7 @@ type BaseProvider struct {
 	StartListenTime         time.Time // 最后一次ASR处理时间
 	SilenceCount            int       // 连续静音计数
 
-	UserPreferences map[string]interface{}
+	UserPreferences map[string]any
 
 	listener providers.AsrEventListener
 }
@@ -78,7 +78,7 @@ func (p *BaseProvider) GetListener() providers.AsrEventListener {
 	return p.listener
 }
 
-func (p *BaseProvider) SetUserPreferences(preferences map[string]interface{}) error {
+func (p *BaseProvider) SetUserPreferences(preferences map[string]any) error {
 	p.UserPreferences = preferences
 	return nil
 }

@@ -71,7 +71,7 @@ func (s *DefaultOTAService) HandleOTARequest() gin.HandlerFunc {
 
 // Trans2OTARequestBody 将原始请求体转换为 OTARequestBody 结构体
 // 主要用于兼容处理不同格式的请求体
-func (s *DefaultOTAService) Trans2OTARequestBody(raw map[string]interface{}) OTARequestBody {
+func (s *DefaultOTAService) Trans2OTARequestBody(raw map[string]any) OTARequestBody {
 	var req OTARequestBody
 	// 优先尝试直接转换
 	if b, err := json.Marshal(raw); err == nil {
@@ -87,7 +87,7 @@ func (s *DefaultOTAService) Trans2OTARequestBody(raw map[string]interface{}) OTA
 	utils.DefaultLogger.Warn("直接转换 OTARequestBody 失败，尝试逐字段兼容转换")
 	// 失败则逐字段兼容转换
 	// Application
-	if app, ok := raw["application"].(map[string]interface{}); ok {
+	if app, ok := raw["application"].(map[string]any); ok {
 		if v, ok := app["name"].(string); ok {
 			req.Application.Name = v
 		}
@@ -105,7 +105,7 @@ func (s *DefaultOTAService) Trans2OTARequestBody(raw map[string]interface{}) OTA
 		}
 	}
 	// Board
-	if board, ok := raw["board"].(map[string]interface{}); ok {
+	if board, ok := raw["board"].(map[string]any); ok {
 		if v, ok := board["channel"].(float64); ok {
 			req.Board.Channel = int(v)
 		}
@@ -129,7 +129,7 @@ func (s *DefaultOTAService) Trans2OTARequestBody(raw map[string]interface{}) OTA
 		}
 	}
 	// ChipInfo
-	if chip, ok := raw["chip_info"].(map[string]interface{}); ok {
+	if chip, ok := raw["chip_info"].(map[string]any); ok {
 		if v, ok := chip["cores"].(float64); ok {
 			req.ChipInfo.Cores = int(v)
 		}
@@ -163,14 +163,14 @@ func (s *DefaultOTAService) Trans2OTARequestBody(raw map[string]interface{}) OTA
 			req.MinimumFreeHeapSize = StringOrNumber(fmt.Sprintf("%v", vv))
 		}
 	}
-	if ota, ok := raw["ota"].(map[string]interface{}); ok {
+	if ota, ok := raw["ota"].(map[string]any); ok {
 		if v, ok := ota["label"].(string); ok {
 			req.OTA.Label = v
 		}
 	}
-	if pt, ok := raw["partition_table"].([]interface{}); ok {
+	if pt, ok := raw["partition_table"].([]any); ok {
 		for _, item := range pt {
-			if m, ok := item.(map[string]interface{}); ok {
+			if m, ok := item.(map[string]any); ok {
 				var p struct {
 					Address float64 `json:"address"`
 					Label   string  `json:"label"`
@@ -223,7 +223,7 @@ func (s *DefaultOTAService) handlePostOTA(c *gin.Context) {
 		return
 	}
 
-	var raw map[string]interface{}
+	var raw map[string]any
 	if err := c.ShouldBindJSON(&raw); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "解析失败: " + err.Error()})
 		utils.DefaultLogger.Error("解析 OTA 请求体失败: %v", err)

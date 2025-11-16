@@ -48,8 +48,6 @@ type Config struct {
 
 	Log struct {
 		LogLevel string `yaml:"log_level" json:"log_level"`
-		LogDir   string `yaml:"log_dir" json:"log_dir"`
-		LogFile  string `yaml:"log_file" json:"log_file"`
 	} `yaml:"log" json:"log"`
 
 	Web struct {
@@ -66,8 +64,6 @@ type Config struct {
 	QuickReply      bool          `yaml:"quick_reply"        json:"quick_reply"`
 	QuickReplyWords []string      `yaml:"quick_reply_words"  json:"quick_reply_words"`
 	LocalMCPFun     []LocalMCPFun `yaml:"local_mcp_fun"      json:"local_mcp_fun"` // 本地MCP函数映射
-	SaveTTSAudio    bool          `yaml:"save_tts_audio"  json:"save_tts_audio"`   // 是否保存TTS音频文件
-	SaveUserAudio   bool          `yaml:"save_user_audio" json:"save_user_audio"`  // 是否保存用户音频文件
 
 	SelectedModule map[string]string `yaml:"selected_module" json:"selected_module"`
 
@@ -90,7 +86,7 @@ type Role struct {
 }
 
 // ASRConfig ASR配置结构
-type ASRConfig map[string]interface{}
+type ASRConfig map[string]any
 
 // TTSConfig TTS配置结构
 type TTSConfig struct {
@@ -105,14 +101,14 @@ type TTSConfig struct {
 
 // LLMConfig LLM配置结构
 type LLMConfig struct {
-	Type        string                 `yaml:"type"        json:"type"`        // LLM类型
-	ModelName   string                 `yaml:"model_name"  json:"model_name"`  // 模型名称
-	BaseURL     string                 `yaml:"url"         json:"url"`         // API地址
-	APIKey      string                 `yaml:"api_key"     json:"api_key"`     // API密钥
-	Temperature float64                `yaml:"temperature" json:"temperature"` // 温度参数
-	MaxTokens   int                    `yaml:"max_tokens"  json:"max_tokens"`  // 最大令牌数
-	TopP        float64                `yaml:"top_p"       json:"top_p"`       // TopP参数
-	Extra       map[string]interface{} `yaml:",inline"     json:"extra"`       // 额外配置
+	Type        string         `yaml:"type"        json:"type"`        // LLM类型
+	ModelName   string         `yaml:"model_name"  json:"model_name"`  // 模型名称
+	BaseURL     string         `yaml:"url"         json:"url"`         // API地址
+	APIKey      string         `yaml:"api_key"     json:"api_key"`     // API密钥
+	Temperature float64        `yaml:"temperature" json:"temperature"` // 温度参数
+	MaxTokens   int            `yaml:"max_tokens"  json:"max_tokens"`  // 最大令牌数
+	TopP        float64        `yaml:"top_p"       json:"top_p"`       // TopP参数
+	Extra       map[string]any `yaml:",inline"     json:"extra"`       // 额外配置
 }
 
 // SecurityConfig 图片安全配置结构
@@ -128,15 +124,15 @@ type SecurityConfig struct {
 
 // VLLMConfig VLLLM配置结构（视觉语言大模型）
 type VLLMConfig struct {
-	Type        string                 `yaml:"type"        json:"type"`        // API类型，复用LLM的类型
-	ModelName   string                 `yaml:"model_name"  json:"model_name"`  // 模型名称，使用支持视觉的模型
-	BaseURL     string                 `yaml:"url"         json:"url"`         // API地址
-	APIKey      string                 `yaml:"api_key"     json:"api_key"`     // API密钥
-	Temperature float64                `yaml:"temperature" json:"temperature"` // 温度参数
-	MaxTokens   int                    `yaml:"max_tokens"  json:"max_tokens"`  // 最大令牌数
-	TopP        float64                `yaml:"top_p"       json:"top_p"`       // TopP参数
-	Security    SecurityConfig         `yaml:"security"    json:"security"`    // 图片安全配置
-	Extra       map[string]interface{} `yaml:",inline"     json:"extra"`       // 额外配置
+	Type        string         `yaml:"type"        json:"type"`        // API类型，复用LLM的类型
+	ModelName   string         `yaml:"model_name"  json:"model_name"`  // 模型名称，使用支持视觉的模型
+	BaseURL     string         `yaml:"url"         json:"url"`         // API地址
+	APIKey      string         `yaml:"api_key"     json:"api_key"`     // API密钥
+	Temperature float64        `yaml:"temperature" json:"temperature"` // 温度参数
+	MaxTokens   int            `yaml:"max_tokens"  json:"max_tokens"`  // 最大令牌数
+	TopP        float64        `yaml:"top_p"       json:"top_p"`       // TopP参数
+	Security    SecurityConfig `yaml:"security"    json:"security"`    // 图片安全配置
+	Extra       map[string]any `yaml:",inline"     json:"extra"`       // 额外配置
 }
 
 var Cfg *Config

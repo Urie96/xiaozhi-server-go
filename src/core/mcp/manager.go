@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sync"
 	"time"
 	"xiaozhi-server-go/src/configs"
@@ -86,7 +87,7 @@ func (m *Manager) preInitializeServers() error {
 
 	for name, srvConfig := range config {
 		// 只初始化不需要连接的外部MCP服务器
-		srvConfigMap, ok := srvConfig.(map[string]interface{})
+		srvConfigMap, ok := srvConfig.(map[string]any)
 
 		if !ok {
 			m.logger.Warn("Invalid configuration format for server %s", name)
@@ -135,14 +136,14 @@ func (m *Manager) GetAllToolsNames() []string {
 func (m *Manager) BindConnection(
 	conn Conn,
 	fh types.FunctionRegistryInterface,
-	params interface{},
+	params any,
 ) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	m.conn = conn
 	m.funcHandler = fh
-	paramsMap := params.(map[string]interface{})
+	paramsMap := params.(map[string]any)
 	sessionID := paramsMap["session_id"].(string)
 	visionURL := paramsMap["vision_url"].(string)
 	deviceID := paramsMap["device_id"].(string)
@@ -214,12 +215,7 @@ func (m *Manager) registerAllToolsIfNeeded() {
 
 // 新增辅助方法
 func (m *Manager) isToolRegistered(toolName string) bool {
-	for _, tool := range m.tools {
-		if tool == toolName {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(m.tools, toolName)
 }
 
 // 改进Reset方法
@@ -261,30 +257,30 @@ func (m *Manager) Cleanup() error {
 }
 
 // LoadConfig 加载MCP服务配置
-func (m *Manager) LoadConfig() map[string]interface{} {
+func (m *Manager) LoadConfig() map[string]any {
 	if m.configPath == "" {
 		return nil
 	}
 
 	data, err := os.ReadFile(m.configPath)
 	if err != nil {
-		m.logger.Error(fmt.Sprintf("Error loading MCP config from %s: %v", m.configPath, err))
+		m.logger.Error("%s", fmt.Sprintf("Error loading MCP config from %s: %v", m.configPath, err))
 		return nil
 	}
 
 	var config struct {
-		MCPServers map[string]interface{} `json:"mcpServers"`
+		MCPServers map[string]any `json:"mcpServers"`
 	}
 
 	if err := json.Unmarshal(data, &config); err != nil {
-		m.logger.Error(fmt.Sprintf("Error parsing MCP config: %v", err))
+		m.logger.Error("%s", fmt.Sprintf("Error parsing MCP config: %v", err))
 		return nil
 	}
 
 	return config.MCPServers
 }
 
-func (m *Manager) HandleXiaoZhiMCPMessage(msgMap map[string]interface{}) error {
+func (m *Manager) HandleXiaoZhiMCPMessage(msgMap map[string]any) error {
 	// 处理小智MCP消息
 	if m.XiaoZhiMCPClient == nil {
 		return fmt.Errorf("XiaoZhiMCPClient is not initialized")
@@ -303,7 +299,7 @@ func (m *Manager) HandleXiaoZhiMCPMessage(msgMap map[string]interface{}) error {
 }
 
 // convertConfig 将map配置转换为Config结构
-func convertConfig(cfg map[string]interface{}) (*Config, error) {
+func convertConfig(cfg map[string]any) (*Config, error) {
 	// 实现从map到Config结构的转换
 	config := &Config{
 		Enabled: true, // 默认启用
@@ -335,7 +331,7 @@ func convertConfig(cfg map[string]interface{}) (*Config, error) {
 	}
 
 	// 命令行参数
-	if args, ok := cfg["args"].([]interface{}); ok {
+	if args, ok := cfg["args"].([]any); ok {
 		for _, arg := range args {
 			if argStr, ok := arg.(string); ok {
 				config.Args = append(config.Args, argStr)
@@ -349,7 +345,7 @@ func convertConfig(cfg map[string]interface{}) (*Config, error) {
 	}
 
 	// 环境变量
-	if env, ok := cfg["env"].(map[string]interface{}); ok {
+	if env, ok := cfg["env"].(map[string]any); ok {
 		config.Env = make([]string, 0)
 		for k, v := range env {
 			if vStr, ok := v.(string); ok {
@@ -408,8 +404,8 @@ func (m *Manager) IsMCPTool(toolName string) bool {
 func (m *Manager) ExecuteTool(
 	ctx context.Context,
 	toolName string,
-	arguments map[string]interface{},
-) (interface{}, error) {
+	arguments map[string]any,
+) (any, error) {
 	m.logger.Info(fmt.Sprintf("Executing tool %s with arguments: %v", toolName, arguments))
 
 	m.mu.RLock()

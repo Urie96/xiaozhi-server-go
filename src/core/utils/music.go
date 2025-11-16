@@ -132,7 +132,6 @@ func GetMusicFilePathFuzzy(songName string) (string, string, error) {
 
 		if similarity > bestMatch.Similarity {
 			bestMatch.FilePath = fmt.Sprintf("%s/%s", musicDir, fileName)
-			bestMatch.FileName = fileName
 			bestMatch.Similarity = similarity
 		}
 	}
@@ -185,10 +184,7 @@ func calculateSimilarity(s1, s2 string) float64 {
 
 	// 编辑距离相似度
 	editDist := editDistance(s1, s2)
-	maxLen := len(s1)
-	if len(s2) > maxLen {
-		maxLen = len(s2)
-	}
+	maxLen := max(len(s2), len(s1))
 	editSimilarity := 1.0 - float64(editDist)/float64(maxLen)
 
 	// 最长公共子序列相似度
@@ -196,11 +192,7 @@ func calculateSimilarity(s1, s2 string) float64 {
 	lcsSimilarity := float64(lcsLen*2) / float64(len(s1)+len(s2))
 
 	// 综合相似度（权重分配）
-	finalSimilarity := containsSimilarity*0.3 + editSimilarity*0.4 + lcsSimilarity*0.3
-
-	if finalSimilarity > 1.0 {
-		finalSimilarity = 1.0
-	}
+	finalSimilarity := min(containsSimilarity*0.3+editSimilarity*0.4+lcsSimilarity*0.3, 1.0)
 
 	return finalSimilarity
 }
@@ -252,23 +244,4 @@ func longestCommonSubsequence(s1, s2 string) int {
 	}
 
 	return dp[m][n]
-}
-
-// min 返回三个整数中的最小值
-func min(a, b, c int) int {
-	if a <= b && a <= c {
-		return a
-	}
-	if b <= c {
-		return b
-	}
-	return c
-}
-
-// max 返回两个整数中的最大值
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
 }

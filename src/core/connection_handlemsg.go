@@ -52,7 +52,7 @@ func (h *ConnectionHandler) handleMessage(messageType int, message []byte) error
 // processClientTextMessage 处理文本数据
 func (h *ConnectionHandler) processClientTextMessage(ctx context.Context, text string) error {
 	// 解析JSON消息
-	var msgJSON interface{}
+	var msgJSON any
 	if err := json.Unmarshal([]byte(text), &msgJSON); err != nil {
 		return h.conn.WriteMessage(1, []byte(text))
 	}
@@ -63,7 +63,7 @@ func (h *ConnectionHandler) processClientTextMessage(ctx context.Context, text s
 	}
 
 	// 解析为map类型处理具体消息
-	msgMap, ok := msgJSON.(map[string]interface{})
+	msgMap, ok := msgJSON.(map[string]any)
 	if !ok {
 		return fmt.Errorf("消息格式错误")
 	}
@@ -92,7 +92,7 @@ func (h *ConnectionHandler) processClientTextMessage(ctx context.Context, text s
 	case "mcp":
 		return h.mcpManager.HandleXiaoZhiMCPMessage(msgMap)
 	default:
-		h.logger.Warn("=== 未知消息类型 ===", map[string]interface{}{
+		h.logger.Warn("=== 未知消息类型 ===", map[string]any{
 			"unknown_type": msgType,
 			"full_message": msgMap,
 		})
@@ -100,7 +100,7 @@ func (h *ConnectionHandler) processClientTextMessage(ctx context.Context, text s
 	}
 }
 
-func (h *ConnectionHandler) handleVisionMessage(msgMap map[string]interface{}) error {
+func (h *ConnectionHandler) handleVisionMessage(msgMap map[string]any) error {
 	// 处理视觉消息
 	cmd := msgMap["cmd"].(string)
 	if cmd == "gen_pic" {
@@ -112,10 +112,10 @@ func (h *ConnectionHandler) handleVisionMessage(msgMap map[string]interface{}) e
 
 // handleHelloMessage 处理欢迎消息
 // 客户端会上传语音格式和采样率等信息
-func (h *ConnectionHandler) handleHelloMessage(msgMap map[string]interface{}) error {
+func (h *ConnectionHandler) handleHelloMessage(msgMap map[string]any) error {
 	h.LogInfo(fmt.Sprintf("[客户端] [hello 收到欢迎消息] %v", msgMap))
 	// 获取客户端编码格式
-	if audioParams, ok := msgMap["audio_params"].(map[string]interface{}); ok {
+	if audioParams, ok := msgMap["audio_params"].(map[string]any); ok {
 		if format, ok := audioParams["format"].(string); ok {
 			h.clientAudioFormat = format
 			if format == "pcm" {
@@ -153,7 +153,7 @@ func (h *ConnectionHandler) handleHelloMessage(msgMap map[string]interface{}) er
 }
 
 // handleListenMessage 处理语音相关消息
-func (h *ConnectionHandler) handleListenMessage(msgMap map[string]interface{}) error {
+func (h *ConnectionHandler) handleListenMessage(msgMap map[string]any) error {
 
 	// 处理state参数
 	state, ok := msgMap["state"].(string)
@@ -194,13 +194,13 @@ func (h *ConnectionHandler) handleListenMessage(msgMap map[string]interface{}) e
 }
 
 // handleIotMessage 处理IOT设备消息
-func (h *ConnectionHandler) handleIotMessage(msgMap map[string]interface{}) error {
-	if descriptors, ok := msgMap["descriptors"].([]interface{}); ok {
+func (h *ConnectionHandler) handleIotMessage(msgMap map[string]any) error {
+	if descriptors, ok := msgMap["descriptors"].([]any); ok {
 		// 处理设备描述符
 		// 这里需要实现具体的IOT设备描述符处理逻辑
 		h.LogInfo(fmt.Sprintf("收到IOT设备描述符：%v", descriptors))
 	}
-	if states, ok := msgMap["states"].([]interface{}); ok {
+	if states, ok := msgMap["states"].([]any); ok {
 		// 处理设备状态
 		// 这里需要实现具体的IOT设备状态处理逻辑
 		h.LogInfo(fmt.Sprintf("收到IOT设备状态：%v", states))
@@ -209,7 +209,7 @@ func (h *ConnectionHandler) handleIotMessage(msgMap map[string]interface{}) erro
 }
 
 // handleImageMessage 处理图片消息
-func (h *ConnectionHandler) handleImageMessage(ctx context.Context, msgMap map[string]interface{}) error {
+func (h *ConnectionHandler) handleImageMessage(ctx context.Context, msgMap map[string]any) error {
 	// 增加对话轮次
 	h.talkRound++
 	currentRound := h.talkRound
@@ -228,7 +228,7 @@ func (h *ConnectionHandler) handleImageMessage(ctx context.Context, msgMap map[s
 	}
 
 	// 解析图片数据
-	imageDataMap, ok := msgMap["image_data"].(map[string]interface{})
+	imageDataMap, ok := msgMap["image_data"].(map[string]any)
 	if !ok {
 		return fmt.Errorf("缺少图片数据")
 	}
@@ -249,7 +249,7 @@ func (h *ConnectionHandler) handleImageMessage(ctx context.Context, msgMap map[s
 		return fmt.Errorf("图片数据为空")
 	}
 
-	h.LogInfo(fmt.Sprintf("收到图片消息 %v", map[string]interface{}{
+	h.LogInfo(fmt.Sprintf("收到图片消息 %v", map[string]any{
 		"text":        text,
 		"has_url":     imageData.URL != "",
 		"has_data":    imageData.Data != "",

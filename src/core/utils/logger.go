@@ -6,10 +6,8 @@ import (
 	"io"
 	"log/slog"
 	"os"
-	"path/filepath"
 	"sort"
 	"strings"
-	"sync"
 	"time"
 )
 
@@ -31,15 +29,12 @@ var DefaultLogger *Logger
 
 type LogCfg struct {
 	LogLevel string `yaml:"log_level" json:"log_level"`
-	LogDir   string `yaml:"log_dir" json:"log_dir"`
-	LogFile  string `yaml:"log_file" json:"log_file"`
 }
 
 // CustomTextHandler 自定义文本处理器，支持彩色输出和格式化
 type CustomTextHandler struct {
 	writer io.Writer
 	level  slog.Level
-	mu     sync.Mutex
 }
 
 var (
@@ -60,9 +55,6 @@ func (h *CustomTextHandler) Enabled(ctx context.Context, level slog.Level) bool 
 }
 
 func (h *CustomTextHandler) Handle(ctx context.Context, r slog.Record) error {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-
 	// 获取时间戳
 	timeStr := r.Time.Format("2006-01-02 15:04:05.000")
 
@@ -144,13 +136,8 @@ func (h *CustomTextHandler) WithGroup(name string) slog.Handler {
 // Logger 日志接口实现
 type Logger struct {
 	config      *LogCfg
-	jsonLogger  *slog.Logger // 文件JSON输出
 	textLogger  *slog.Logger // 控制台文本输出
-	logFile     *os.File
-	currentDate string        // 当前日期 YYYY-MM-DD
-	mu          sync.RWMutex  // 读写锁保护
-	ticker      *time.Ticker  // 定时器
-	stopCh      chan struct{} // 停止信号
+	currentDate string       // 当前日期 YYYY-MM-DD
 }
 
 // configLogLevelToSlogLevel 将配置中的日志级别转换为slog.Level
@@ -171,25 +158,8 @@ func configLogLevelToSlogLevel(configLevel string) slog.Level {
 
 // NewLogger 创建新的日志记录器
 func NewLogger(config *LogCfg) (*Logger, error) {
-	// 确保日志目录存在
-	if err := os.MkdirAll(config.LogDir, 0o755); err != nil {
-		return nil, fmt.Errorf("创建日志目录失败: %v", err)
-	}
-
-	// 打开或创建日志文件
-	logPath := filepath.Join(config.LogDir, config.LogFile)
-	file, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
-	if err != nil {
-		return nil, fmt.Errorf("打开日志文件失败: %v", err)
-	}
-
 	// 设置slog级别
 	slogLevel := configLogLevelToSlogLevel(config.LogLevel)
-
-	// 创建JSON处理器（用于文件输出）
-	jsonHandler := slog.NewJSONHandler(file, &slog.HandlerOptions{
-		Level: slogLevel,
-	})
 
 	// 创建自定义文本处理器（用于控制台输出）
 	customHandler := &CustomTextHandler{
@@ -197,21 +167,14 @@ func NewLogger(config *LogCfg) (*Logger, error) {
 		level:  slogLevel,
 	}
 
-	// 创建logger实例
-	jsonLogger := slog.New(jsonHandler)
 	textLogger := slog.New(customHandler)
 
 	logger := &Logger{
 		config:      config,
-		jsonLogger:  jsonLogger,
 		textLogger:  textLogger,
-		logFile:     file,
 		currentDate: time.Now().Format("2006-01-02"),
-		stopCh:      make(chan struct{}),
 	}
 
-	// 启动日志轮转检查器
-	logger.startRotationChecker()
 	if DefaultLogger == nil {
 		DefaultLogger = logger
 	}
@@ -219,154 +182,13 @@ func NewLogger(config *LogCfg) (*Logger, error) {
 	return logger, nil
 }
 
-// startRotationChecker 启动定时检查器
-func (l *Logger) startRotationChecker() {
-	l.ticker = time.NewTicker(1 * time.Minute) // 每分钟检查一次
-	go func() {
-		for {
-			select {
-			case <-l.ticker.C:
-				l.checkAndRotate()
-			case <-l.stopCh:
-				return
-			}
-		}
-	}()
-}
-
-// checkAndRotate 检查并执行轮转
-func (l *Logger) checkAndRotate() {
-	today := time.Now().Format("2006-01-02")
-	if today != l.currentDate {
-		l.rotateLogFile(today)
-		l.cleanOldLogs()
-	}
-}
-
-// rotateLogFile 执行日志轮转
-func (l *Logger) rotateLogFile(newDate string) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-
-	// 关闭当前日志文件
-	if l.logFile != nil {
-		l.logFile.Close()
-	}
-
-	// 构建旧文件名和新文件名
-	logDir := l.config.LogDir
-	currentLogPath := filepath.Join(logDir, l.config.LogFile)
-
-	// 生成带日期的文件名
-	baseFileName := strings.TrimSuffix(l.config.LogFile, filepath.Ext(l.config.LogFile))
-	ext := filepath.Ext(l.config.LogFile)
-	archivedLogPath := filepath.Join(logDir, fmt.Sprintf("%s-%s%s", baseFileName, l.currentDate, ext))
-
-	// 重命名当前日志文件为带日期的文件
-	if _, err := os.Stat(currentLogPath); err == nil {
-		if err := os.Rename(currentLogPath, archivedLogPath); err != nil {
-			// 如果重命名失败，记录到控制台
-			l.textLogger.Error("重命名日志文件失败", slog.String("error", err.Error()))
-		}
-	}
-
-	// 创建新的日志文件
-	file, err := os.OpenFile(currentLogPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
-	if err != nil {
-		l.textLogger.Error("创建新日志文件失败", slog.String("error", err.Error()))
-		return
-	}
-
-	// 更新logger配置
-	l.logFile = file
-	l.currentDate = newDate
-
-	// 重新创建JSON处理器
-	slogLevel := configLogLevelToSlogLevel(l.config.LogLevel)
-	jsonHandler := slog.NewJSONHandler(file, &slog.HandlerOptions{
-		Level: slogLevel,
-	})
-	l.jsonLogger = slog.New(jsonHandler)
-
-	// 记录轮转信息
-	l.textLogger.Info("日志文件已轮转", slog.String("new_date", newDate))
-}
-
-// cleanOldLogs 清理旧日志文件
-func (l *Logger) cleanOldLogs() {
-	logDir := l.config.LogDir
-
-	// 读取日志目录
-	entries, err := os.ReadDir(logDir)
-	if err != nil {
-		l.textLogger.Error("读取日志目录失败", slog.String("error", err.Error()))
-		return
-	}
-
-	// 计算保留截止日期
-	cutoffDate := time.Now().AddDate(0, 0, -LogRetentionDays)
-	baseFileName := strings.TrimSuffix(l.config.LogFile, filepath.Ext(l.config.LogFile))
-	ext := filepath.Ext(l.config.LogFile)
-
-	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
-		}
-
-		fileName := entry.Name()
-		// 检查是否是带日期的日志文件格式：server-YYYY-MM-DD.log
-		if strings.HasPrefix(fileName, baseFileName+"-") && strings.HasSuffix(fileName, ext) {
-			// 提取日期部分
-			dateStr := strings.TrimPrefix(fileName, baseFileName+"-")
-			dateStr = strings.TrimSuffix(dateStr, ext)
-
-			// 解析日期
-			fileDate, err := time.Parse("2006-01-02", dateStr)
-			if err != nil {
-				continue // 如果日期格式不正确，跳过
-			}
-
-			// 如果文件日期早于截止日期，删除文件
-			if fileDate.Before(cutoffDate) {
-				filePath := filepath.Join(logDir, fileName)
-				if err := os.Remove(filePath); err != nil {
-					l.textLogger.Error("删除旧日志文件失败",
-						slog.String("file", fileName),
-						slog.String("error", err.Error()))
-				} else {
-					l.textLogger.Info("已删除旧日志文件", slog.String("file", fileName))
-				}
-			}
-		}
-	}
-}
-
-// Close 关闭日志文件
-func (l *Logger) Close() error {
-	// 停止定时器
-	if l.ticker != nil {
-		l.ticker.Stop()
-	}
-	// 发送停止信号
-	close(l.stopCh)
-	// 关闭日志文件
-	if l.logFile != nil {
-		return l.logFile.Close()
-	}
-	return nil
-}
-
 // log 通用日志记录函数（内部使用）
-func (l *Logger) log(level slog.Level, msg string, fields ...interface{}) {
-	// 使用读锁保护并发访问
-	l.mu.RLock()
-	defer l.mu.RUnlock()
-
+func (l *Logger) log(level slog.Level, msg string, fields ...any) {
 	// 构建slog属性
 	var attrs []slog.Attr
 	if len(fields) > 0 && fields[0] != nil {
 		// 处理fields参数
-		if fieldsMap, ok := fields[0].(map[string]interface{}); ok {
+		if fieldsMap, ok := fields[0].(map[string]any); ok {
 			// 提取并排序键
 			keys := make([]string, 0, len(fieldsMap))
 			for k := range fieldsMap {
@@ -386,12 +208,11 @@ func (l *Logger) log(level slog.Level, msg string, fields ...interface{}) {
 
 	// 同时写入文件（JSON）和控制台（文本）
 	ctx := context.Background()
-	l.jsonLogger.LogAttrs(ctx, level, msg, attrs...)
 	l.textLogger.LogAttrs(ctx, level, msg, attrs...)
 }
 
 // Debug 记录调试级别日志
-func (l *Logger) Debug(msg string, args ...interface{}) {
+func (l *Logger) Debug(msg string, args ...any) {
 	if l.config.LogLevel == "DEBUG" {
 		if len(args) > 0 && containsFormatPlaceholders(msg) {
 			formattedMsg := fmt.Sprintf(msg, args...)
@@ -407,7 +228,7 @@ func containsFormatPlaceholders(s string) bool {
 }
 
 // Info 记录信息级别日志
-func (l *Logger) Info(msg string, args ...interface{}) {
+func (l *Logger) Info(msg string, args ...any) {
 	// 检测是否为格式化模式
 	if len(args) > 0 && containsFormatPlaceholders(msg) {
 		// 格式化模式：类似 Info
@@ -420,7 +241,7 @@ func (l *Logger) Info(msg string, args ...interface{}) {
 }
 
 // Warn 记录警告级别日志
-func (l *Logger) Warn(msg string, args ...interface{}) {
+func (l *Logger) Warn(msg string, args ...any) {
 	if len(args) > 0 && containsFormatPlaceholders(msg) {
 		formattedMsg := fmt.Sprintf(msg, args...)
 		l.log(slog.LevelWarn, formattedMsg)
@@ -430,7 +251,7 @@ func (l *Logger) Warn(msg string, args ...interface{}) {
 }
 
 // Error 记录错误级别日志
-func (l *Logger) Error(msg string, args ...interface{}) {
+func (l *Logger) Error(msg string, args ...any) {
 	if len(args) > 0 && containsFormatPlaceholders(msg) {
 		formattedMsg := fmt.Sprintf(msg, args...)
 		l.log(slog.LevelError, formattedMsg)
@@ -440,25 +261,25 @@ func (l *Logger) Error(msg string, args ...interface{}) {
 }
 
 // InfoASR 记录ASR阶段信息日志
-func (l *Logger) InfoASR(msg string, args ...interface{}) {
+func (l *Logger) InfoASR(msg string, args ...any) {
 	prefixedMsg := "[ASR] " + msg
 	l.Info(prefixedMsg, args...)
 }
 
 // InfoLLM 记录LLM阶段信息日志
-func (l *Logger) InfoLLM(msg string, args ...interface{}) {
+func (l *Logger) InfoLLM(msg string, args ...any) {
 	prefixedMsg := "[LLM] " + msg
 	l.Info(prefixedMsg, args...)
 }
 
 // InfoTTS 记录TTS阶段信息日志
-func (l *Logger) InfoTTS(msg string, args ...interface{}) {
+func (l *Logger) InfoTTS(msg string, args ...any) {
 	prefixedMsg := "[TTS] " + msg
 	l.Info(prefixedMsg, args...)
 }
 
 // InfoTiming 记录计时信息日志
-func (l *Logger) InfoTiming(msg string, args ...interface{}) {
+func (l *Logger) InfoTiming(msg string, args ...any) {
 	prefixedMsg := "[TIMING] " + msg
 	l.Info(prefixedMsg, args...)
 }

@@ -274,9 +274,9 @@ func (p *Provider) ReadMessage() {
 			// Check if this is a final result
 			isFinal, _ := result["is_final"].(bool)
 
-			if channel, ok := result["channel"].(map[string]interface{}); ok {
-				if alternatives, ok := channel["alternatives"].([]interface{}); ok && len(alternatives) > 0 {
-					if firstAlt, ok := alternatives[0].(map[string]interface{}); ok {
+			if channel, ok := result["channel"].(map[string]any); ok {
+				if alternatives, ok := channel["alternatives"].([]any); ok && len(alternatives) > 0 {
+					if firstAlt, ok := alternatives[0].(map[string]any); ok {
 						if transcript, ok := firstAlt["transcript"].(string); ok {
 							transcript = strings.TrimSpace(transcript)
 
@@ -312,8 +312,8 @@ func (p *Provider) ReadMessage() {
 }
 
 // parseResponse parses the Deepgram response
-func (p *Provider) parseResponse(data []byte) (map[string]interface{}, error) {
-	var response map[string]interface{}
+func (p *Provider) parseResponse(data []byte) (map[string]any, error) {
+	var response map[string]any
 	if err := json.Unmarshal(data, &response); err != nil {
 		return nil, fmt.Errorf("failed to parse JSON response: %v", err)
 	}

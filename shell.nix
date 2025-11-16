@@ -16,6 +16,6 @@ pkgs.mkShell {
     CGO_ENABLED = 1;
     SILERO_MODEL_PATH = "./models/silero_vad.onnx";
     CGO_CFLAGS = "-O2 -Wno-cpp";
-    CONFIG_PATH = "config.yaml";
+    CONFIG_PATH = ".config.yaml";
   };
 }

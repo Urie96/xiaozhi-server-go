@@ -2,7 +2,7 @@
 server:
   # 服务器监听地址和端口(Server listening address and port)
   ip: 0.0.0.0
-  port: 8000
+  port: 8001
   token: "你的token" # 服务器访问令牌
   # 认证配置
   auth:
@@ -23,17 +23,16 @@ transport:
   websocket:
     enabled: true
     ip: "0.0.0.0"
-    port: 8000
+    port: 8001
 
 # Web界面配置
 web:
   # 是否启用Web界面
   enabled: true
   # Web服务监听端口
-  port: 8080
+  port: 8083
   # 由ota下发的WebSocket地址
-  websocket: ws://你的ip:8000
-  vision: http://你的ip:8080/api/vision
+  websocket: ws://home.lubui.com:8001
   activate_text: "Amine AI Chat" # 发送激活码时携带的文本
 
 log:

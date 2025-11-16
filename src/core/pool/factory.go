@@ -23,16 +23,16 @@ import (
 type ProviderFactory struct {
 	Name         string // 提供者名称
 	providerType string
-	config       interface{}
+	config       any
 	logger       *utils.Logger
-	params       map[string]interface{} // 可选参数
+	params       map[string]any // 可选参数
 }
 
-func (f *ProviderFactory) Create() (interface{}, error) {
+func (f *ProviderFactory) Create() (any, error) {
 	return f.createProvider()
 }
 
-func (f *ProviderFactory) Destroy(resource interface{}) error {
+func (f *ProviderFactory) Destroy(resource any) error {
 	f.logger.Info("[Destroy] %s 资源池关闭，销毁资源", f.Name)
 
 	if provider, ok := resource.(providers.Provider); ok {
@@ -48,7 +48,7 @@ func (f *ProviderFactory) Destroy(resource interface{}) error {
 	return nil
 }
 
-func (f *ProviderFactory) createProvider() (interface{}, error) {
+func (f *ProviderFactory) createProvider() (any, error) {
 	switch f.providerType {
 	case "asr":
 		cfg := f.config.(*asr.Config)
@@ -87,7 +87,7 @@ func NewASRFactory(asrType string, config *configs.Config, logger *utils.Logger)
 				Data: asrCfg,
 			},
 			logger: logger,
-			params: map[string]interface{}{
+			params: map[string]any{
 				"type":         asrCfg["type"],
 				"delete_audio": config.DeleteAudio,
 			},
@@ -132,7 +132,7 @@ func NewTTSFactory(ttsType string, config *configs.Config, logger *utils.Logger)
 				Cluster:   ttsCfg.Cluster,
 			},
 			logger: logger,
-			params: map[string]interface{}{
+			params: map[string]any{
 				"type":         ttsCfg.Type,
 				"delete_audio": config.DeleteAudio,
 			},
@@ -162,6 +162,6 @@ func NewMCPFactory(config *configs.Config, logger *utils.Logger) ResourceFactory
 		providerType: "mcp",
 		config:       config,
 		logger:       logger,
-		params:       map[string]interface{}{},
+		params:       map[string]any{},
 	}
 }

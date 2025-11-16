@@ -34,7 +34,7 @@ type MCPClient interface {
 	GetAvailableTools() []openai.Tool
 
 	// CallTool 调用指定的工具
-	CallTool(ctx context.Context, name string, args map[string]interface{}) (interface{}, error)
+	CallTool(ctx context.Context, name string, args map[string]any) (any, error)
 
 	// IsReady 检查客户端是否已初始化完成并准备就绪
 	IsReady() bool

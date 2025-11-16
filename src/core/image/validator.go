@@ -83,7 +83,7 @@ func (v *ImageSecurityValidator) deepValidateImage(
 			v.config.MaxFileSize,
 		)
 		result.SecurityRisk = "文件过大，可能是DoS攻击"
-		v.logger.Warn("检测到超大文件", map[string]interface{}{
+		v.logger.Warn("检测到超大文件", map[string]any{
 			"size":     len(data),
 			"max_size": v.config.MaxFileSize,
 			"format":   declaredFormat,
@@ -102,7 +102,7 @@ func (v *ImageSecurityValidator) deepValidateImage(
 	if v.config.EnableDeepScan && v.scanForMaliciousContent(data) {
 		result.Error = fmt.Errorf("检测到潜在恶意内容")
 		result.SecurityRisk = "可能包含恶意载荷"
-		v.logger.Warn("检测到可疑内容", map[string]interface{}{
+		v.logger.Warn("检测到可疑内容", map[string]any{
 			"format": declaredFormat,
 			"size":   len(data),
 		})
@@ -115,7 +115,7 @@ func (v *ImageSecurityValidator) deepValidateImage(
 		// 图片解码失败，再检查文件头是否匹配
 		if declaredFormat != "" && !v.validateFileSignature(data, declaredFormat) {
 			// 记录警告但不直接失败，有些图片可能格式稍有不同但仍是有效的
-			v.logger.Warn("文件头验证失败，但继续尝试解码", map[string]interface{}{
+			v.logger.Warn("文件头验证失败，但继续尝试解码", map[string]any{
 				"declared_format": declaredFormat,
 				"actual_header":   fmt.Sprintf("%x", data[:min(len(data), 16)]),
 			})
@@ -192,7 +192,7 @@ func (v *ImageSecurityValidator) basicSecurityCheck(data []byte) bool {
 
 	for i, signature := range executableSignatures {
 		if bytes.HasPrefix(data, signature) {
-			v.logger.Warn("文件开头检测到可执行文件签名", map[string]interface{}{
+			v.logger.Warn("文件开头检测到可执行文件签名", map[string]any{
 				"signature_type": signatureNames[i],
 				"signature_hex":  fmt.Sprintf("%x", signature),
 			})
@@ -223,7 +223,7 @@ func (v *ImageSecurityValidator) fullSecurityCheck(data []byte) bool {
 
 	for i, signature := range executableSignatures {
 		if bytes.HasPrefix(data, signature) {
-			v.logger.Warn("文件开头检测到可执行文件签名", map[string]interface{}{
+			v.logger.Warn("文件开头检测到可执行文件签名", map[string]any{
 				"signature_type": signatureNames[i],
 				"signature_hex":  fmt.Sprintf("%x", signature),
 			})
@@ -241,7 +241,7 @@ func (v *ImageSecurityValidator) fullSecurityCheck(data []byte) bool {
 
 	for i, signature := range compressionSignatures {
 		if bytes.HasPrefix(data, signature) {
-			v.logger.Warn("文件开头检测到压缩文件签名", map[string]interface{}{
+			v.logger.Warn("文件开头检测到压缩文件签名", map[string]any{
 				"signature_type": compressionNames[i],
 				"signature_hex":  fmt.Sprintf("%x", signature),
 			})
@@ -278,7 +278,7 @@ func (v *ImageSecurityValidator) checkSVGScripts(dataStr string) bool {
 	dataStrLower := strings.ToLower(dataStr)
 	for _, suspicious := range suspiciousStrings {
 		if strings.Contains(dataStrLower, suspicious) {
-			v.logger.Warn("在SVG中检测到可疑脚本内容", map[string]interface{}{
+			v.logger.Warn("在SVG中检测到可疑脚本内容", map[string]any{
 				"suspicious_content": suspicious,
 			})
 			return true
@@ -331,7 +331,7 @@ func (v *ImageSecurityValidator) validateImageDecoding(
 	result.Height = config.Height
 	result.FileSize = int64(len(data))
 
-	v.logger.Debug("图片验证成功 %v", map[string]interface{}{
+	v.logger.Debug("图片验证成功 %v", map[string]any{
 		"format": result.Format,
 		"width":  result.Width,
 		"height": result.Height,

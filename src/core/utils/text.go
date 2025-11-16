@@ -240,7 +240,7 @@ func RemoveAllPunctuation(text string) string {
 }
 
 // extract_json_from_string 提取字符串中的 JSON 部分
-func Extract_json_from_string(input string) map[string]interface{} {
+func Extract_json_from_string(input string) map[string]any {
 	// 提取最外层的{}
 	start := strings.Index(input, "{")
 	if start == -1 {
@@ -267,7 +267,7 @@ outer:
 		return nil
 	}
 	jsonStr := input[start : end+1]
-	var jsonData map[string]interface{}
+	var jsonData map[string]any
 	if err := json.Unmarshal([]byte(jsonStr), &jsonData); err != nil {
 		fmt.Println("JSON解析错误:", err)
 		return nil

@@ -207,7 +207,7 @@ func (c *Client) GetAvailableTools() []openai.Tool {
 			Function: &openai.FunctionDefinition{
 				Name:        fmt.Sprintf("mcp_%s", tool.Name),
 				Description: tool.Description,
-				Parameters: map[string]interface{}{
+				Parameters: map[string]any{
 					"type":       tool.InputSchema.Type,
 					"properties": tool.InputSchema.Properties,
 					"required":   tool.InputSchema.Required,
@@ -225,7 +225,7 @@ func (c *Client) CallTool(
 	ctx context.Context,
 	name string,
 	args map[string]any,
-) (interface{}, error) {
+) (any, error) {
 	// 如果有mcp_前缀，则去掉前缀
 	if len(name) > 4 && name[:4] == "mcp_" {
 		name = name[4:]
@@ -264,7 +264,7 @@ func (c *Client) CallTool(
 		}
 
 		// 处理多个内容项的情况
-		processedContent := make([]interface{}, 0, len(result.Content))
+		processedContent := make([]any, 0, len(result.Content))
 		for _, content := range result.Content {
 			if textContent, ok := content.(mcp.TextContent); ok {
 				processedContent = append(processedContent, textContent.Text)

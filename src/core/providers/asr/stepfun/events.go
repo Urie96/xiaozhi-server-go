@@ -175,7 +175,7 @@ type Response struct {
 	ID            string        `json:"id"`
 	Object        string        `json:"object"`
 	Status        string        `json:"status"`
-	StatusDetails interface{}   `json:"status_details"`
+	StatusDetails any   `json:"status_details"`
 	Output        []MessageItem `json:"output"`
 }
 

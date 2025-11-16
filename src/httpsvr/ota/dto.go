@@ -23,7 +23,7 @@ func (s *StringOrNumber) UnmarshalJSON(b []byte) error {
 		return nil
 	}
 	// 数字
-	var num interface{}
+	var num any
 	if err := json.Unmarshal(b, &num); err != nil {
 		return err
 	}

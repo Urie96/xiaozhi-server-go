@@ -34,7 +34,7 @@ type XiaoZhiMCPClient struct {
 	cancelFunc context.CancelFunc
 
 	// 用于处理工具调用的响应
-	callResults     map[int]chan interface{}
+	callResults     map[int]chan any
 	callResultsLock sync.Mutex
 	nextID          int
 	visionURL       string // 视觉服务URL
@@ -52,7 +52,7 @@ func NewXiaoZhiMCPClient(logger *utils.Logger, conn Conn, sessionID string) *Xia
 		sessionID:   sessionID,
 		tools:       make([]Tool, 0),
 		ready:       false,
-		callResults: make(map[int]chan interface{}),
+		callResults: make(map[int]chan any),
 		nextID:      1,
 		toolNameMap: make(map[string]string),
 	}
@@ -87,7 +87,7 @@ func (c *XiaoZhiMCPClient) ResetConnection() error {
 	c.ready = false
 	c.sessionID = "" // 清除会话ID
 	c.tools = make([]Tool, 0)
-	c.callResults = make(map[int]chan interface{})
+	c.callResults = make(map[int]chan any)
 	c.clientID = "" // 清除客户端ID
 	c.deviceID = "" // 清除设备ID
 
@@ -162,7 +162,7 @@ func (c *XiaoZhiMCPClient) GetAvailableTools() []openai.Tool {
 			Function: &openai.FunctionDefinition{
 				Name:        sanitizeToolName(tool.Name),
 				Description: tool.Description,
-				Parameters: map[string]interface{}{
+				Parameters: map[string]any{
 					"type":       tool.InputSchema.Type,
 					"properties": tool.InputSchema.Properties,
 					"required":   tool.InputSchema.Required,
@@ -177,8 +177,8 @@ func (c *XiaoZhiMCPClient) GetAvailableTools() []openai.Tool {
 func (c *XiaoZhiMCPClient) CallTool(
 	ctx context.Context,
 	name string,
-	args map[string]interface{},
-) (interface{}, error) {
+	args map[string]any,
+) (any, error) {
 	defer func() {
 		if r := recover(); r != nil {
 			c.logger.Error(fmt.Sprintf("调用工具 %s 时发生Panic: %v", name, r))
@@ -200,19 +200,19 @@ func (c *XiaoZhiMCPClient) CallTool(
 	c.callResultsLock.Lock()
 	id := c.nextID
 	c.nextID++
-	resultCh := make(chan interface{}, 1)
+	resultCh := make(chan any, 1)
 	c.callResults[id] = resultCh
 	c.callResultsLock.Unlock()
 
 	// 构造工具调用请求
-	mcpMessage := map[string]interface{}{
+	mcpMessage := map[string]any{
 		"type":       "mcp",
 		"session_id": c.sessionID, // 使用连接的session_id
-		"payload": map[string]interface{}{
+		"payload": map[string]any{
 			"jsonrpc": "2.0",
 			"id":      id,
 			"method":  "tools/call",
-			"params": map[string]interface{}{
+			"params": map[string]any{
 				"name":      originalName,
 				"arguments": args,
 			},
@@ -255,7 +255,7 @@ func (c *XiaoZhiMCPClient) CallTool(
 		c.logger.Info(fmt.Sprintf("客户端mcp工具调用 %s 成功，结果: %v", originalName, result))
 		//  map[content:[map[text:{"audio_speaker":{"volume":10},"screen":{},"network":{"type":"wifi","ssid":"zgcinnotown","signal":"weak"}} type:text]] isError:false]
 		// 将里面的text提取出来
-		if resultMap, ok := result.(map[string]interface{}); ok {
+		if resultMap, ok := result.(map[string]any); ok {
 			// 先判断isError是否为true
 			if isError, ok := resultMap["isError"].(bool); ok && isError {
 				if errorMsg, ok := resultMap["error"].(string); ok {
@@ -264,8 +264,8 @@ func (c *XiaoZhiMCPClient) CallTool(
 				return nil, fmt.Errorf("工具调用返回错误，但未提供具体错误信息")
 			}
 			// 检查content字段是否存在且为非空数组
-			if content, ok := resultMap["content"].([]interface{}); ok && len(content) > 0 {
-				if textMap, ok := content[0].(map[string]interface{}); ok {
+			if content, ok := resultMap["content"].([]any); ok && len(content) > 0 {
+				if textMap, ok := content[0].(map[string]any); ok {
 					if text, ok := textMap["text"].(string); ok {
 						if strings.Contains(originalName, "self.camera.take_photo") {
 							ret := types.ActionResponse{
@@ -319,25 +319,25 @@ func (c *XiaoZhiMCPClient) SendMCPInitializeMessage() error {
 	}()
 
 	// 构造MCP初始化消息
-	mcpMessage := map[string]interface{}{
+	mcpMessage := map[string]any{
 		"type":       "mcp",
 		"session_id": c.sessionID,
-		"payload": map[string]interface{}{
+		"payload": map[string]any{
 			"jsonrpc": "2.0",
 			"id":      mcpInitializeID,
 			"method":  "initialize",
-			"params": map[string]interface{}{
+			"params": map[string]any{
 				"protocolVersion": "2024-11-05",
-				"capabilities": map[string]interface{}{
-					"roots": map[string]interface{}{
+				"capabilities": map[string]any{
+					"roots": map[string]any{
 						"listChanged": true,
 					},
-					"sampling": map[string]interface{}{},
-					"vision": map[string]interface{}{
+					"sampling": map[string]any{},
+					"vision": map[string]any{
 						"url": c.visionURL,
 					},
 				},
-				"clientInfo": map[string]interface{}{
+				"clientInfo": map[string]any{
 					"name":    "XiaozhiClient",
 					"version": "1.0.0",
 				},
@@ -366,10 +366,10 @@ func (c *XiaoZhiMCPClient) SendMCPToolsListRequest() error {
 	}()
 
 	// 构造MCP工具列表请求
-	mcpMessage := map[string]interface{}{
+	mcpMessage := map[string]any{
 		"type":       "mcp",
 		"session_id": c.sessionID,
-		"payload": map[string]interface{}{
+		"payload": map[string]any{
 			"jsonrpc": "2.0",
 			"id":      mcpToolsListID, // 使用新的ID
 			"method":  "tools/list",
@@ -397,14 +397,14 @@ func (c *XiaoZhiMCPClient) SendMCPToolsListContinueRequest(cursor string) error 
 	}()
 
 	// 构造MCP工具列表请求
-	mcpMessage := map[string]interface{}{
+	mcpMessage := map[string]any{
 		"type":       "mcp",
 		"session_id": c.sessionID,
-		"payload": map[string]interface{}{
+		"payload": map[string]any{
 			"jsonrpc": "2.0",
 			"id":      mcpToolsListID, // 使用相同的ID
 			"method":  "tools/list",
-			"params": map[string]interface{}{
+			"params": map[string]any{
 				"cursor": cursor,
 			},
 		},
@@ -423,10 +423,10 @@ func (c *XiaoZhiMCPClient) SendMCPToolsListContinueRequest(cursor string) error 
 }
 
 // HandleMCPMessage 处理MCP消息
-func (c *XiaoZhiMCPClient) HandleMCPMessage(msgMap map[string]interface{}) error {
+func (c *XiaoZhiMCPClient) HandleMCPMessage(msgMap map[string]any) error {
 	// c.logger.Info("处理MCP消息: " + fmt.Sprintf("%v", msgMap))
 	// 获取payload
-	payload, ok := msgMap["payload"].(map[string]interface{})
+	payload, ok := msgMap["payload"].(map[string]any)
 	if !ok {
 		return fmt.Errorf("MCP消息缺少payload字段")
 	}
@@ -452,7 +452,7 @@ func (c *XiaoZhiMCPClient) HandleMCPMessage(msgMap map[string]interface{}) error
 			c.logger.Debug("收到MCP初始化响应")
 
 			// 解析服务器信息
-			if serverInfo, ok := result.(map[string]interface{})["serverInfo"].(map[string]interface{}); ok {
+			if serverInfo, ok := result.(map[string]any)["serverInfo"].(map[string]any); ok {
 				name := serverInfo["name"]
 				version := serverInfo["version"]
 				c.logger.Info(fmt.Sprintf("[MCP] [服务器信息 %v/%v]", name, version))
@@ -465,8 +465,8 @@ func (c *XiaoZhiMCPClient) HandleMCPMessage(msgMap map[string]interface{}) error
 
 			// 解析工具列表
 			toolNames := ""
-			if toolsData, ok := result.(map[string]interface{}); ok {
-				tools, ok := toolsData["tools"].([]interface{})
+			if toolsData, ok := result.(map[string]any); ok {
+				tools, ok := toolsData["tools"].([]any)
 				if !ok {
 					return fmt.Errorf("工具列表格式错误")
 				}
@@ -476,7 +476,7 @@ func (c *XiaoZhiMCPClient) HandleMCPMessage(msgMap map[string]interface{}) error
 				// 解析工具并添加到列表中
 				c.mu.Lock()
 				for i, tool := range tools {
-					toolMap, ok := tool.(map[string]interface{})
+					toolMap, ok := tool.(map[string]any)
 					if !ok {
 						continue
 					}
@@ -489,16 +489,16 @@ func (c *XiaoZhiMCPClient) HandleMCPMessage(msgMap map[string]interface{}) error
 						Type: "object",
 					}
 
-					if schema, ok := toolMap["inputSchema"].(map[string]interface{}); ok {
+					if schema, ok := toolMap["inputSchema"].(map[string]any); ok {
 						if schemaType, ok := schema["type"].(string); ok {
 							inputSchema.Type = schemaType
 						}
 
-						if properties, ok := schema["properties"].(map[string]interface{}); ok {
+						if properties, ok := schema["properties"].(map[string]any); ok {
 							inputSchema.Properties = properties
 						}
 
-						if required, ok := schema["required"].([]interface{}); ok {
+						if required, ok := schema["required"].([]any); ok {
 							inputSchema.Required = make([]string, 0, len(required))
 							for _, r := range required {
 								if s, ok := r.(string); ok {
@@ -542,7 +542,7 @@ func (c *XiaoZhiMCPClient) HandleMCPMessage(msgMap map[string]interface{}) error
 		// 处理客户端发起的请求
 		c.logger.Info(fmt.Sprintf("收到MCP客户端请求: %s", method))
 		// TODO: 实现处理客户端请求的逻辑
-	} else if errorData, hasError := payload["error"].(map[string]interface{}); hasError {
+	} else if errorData, hasError := payload["error"].(map[string]any); hasError {
 		// 处理错误响应
 		errorMsg, _ := errorData["message"].(string)
 		c.logger.Error(fmt.Sprintf("收到MCP错误响应: %v", errorMsg))

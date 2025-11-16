@@ -8,27 +8,6 @@ import (
 	"github.com/sashabaranov/go-openai"
 )
 
-// ToolType represents the type of tool operation.
-type ToolType int
-
-const (
-	ToolNone            ToolType = iota + 1 // 1
-	ToolWait                                // 2
-	ToolChangeSysPrompt                     // 3
-	ToolSystemCtl                           // 4
-	ToolIotCtl                              // 5
-	ToolMcpClient                           // 6
-)
-
-var ToolTypeMessages = map[ToolType]string{
-	ToolNone:            "调用完工具后，不做其他操作",
-	ToolWait:            "调用工具，等待函数返回",
-	ToolChangeSysPrompt: "修改系统提示词，切换角色性格或职责",
-	ToolSystemCtl:       "系统控制，影响正常的对话流程，如退出、播放音乐等，需要传递conn参数",
-	ToolIotCtl:          "IOT设备控制，需要传递conn参数",
-	ToolMcpClient:       "MCP客户端",
-}
-
 // Action represents the type of action.
 type Action int
 
@@ -41,24 +20,16 @@ const (
 	ActionTypeCallHandler Action = 4
 )
 
-var ActionDesc = map[Action]string{
-	ActionTypeError:    "错误",
-	ActionTypeNotFound: "没有找到函数",
-	ActionTypeNone:     "啥也不干",
-	ActionTypeResponse: "直接回复",
-	ActionTypeReqLLM:   "调用函数后再请求llm生成回复",
-}
-
 // ActionResponse holds the result of an action.
 type ActionResponse struct {
 	Action   Action      // 动作类型
-	Result   interface{} // 动作产生的结果
-	Response interface{} // 直接回复的内容
+	Result   any // 动作产生的结果
+	Response any // 直接回复的内容
 }
 
 type ActionResponseCall struct {
 	FuncName string      // 函数名
-	Args     interface{} // 函数参数
+	Args     any // 函数参数
 }
 
 // Message 对话消息结构

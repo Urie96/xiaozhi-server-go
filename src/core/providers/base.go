@@ -29,7 +29,7 @@ type ASRProvider interface {
 	SetListener(listener AsrEventListener)
 
 	// 设置用户偏好，例如语言等
-	SetUserPreferences(preferences map[string]interface{}) error
+	SetUserPreferences(preferences map[string]any) error
 
 	// 复位ASR状态
 	Reset() error

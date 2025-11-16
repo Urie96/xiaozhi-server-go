@@ -19,15 +19,15 @@ import (
 
 // ResourceFactory 资源工厂接口
 type ResourceFactory interface {
-	Create() (interface{}, error)
-	Destroy(resource interface{}) error
+	Create() (any, error)
+	Destroy(resource any) error
 }
 
 // ResourcePool 通用资源池
 type ResourcePool struct {
 	poolName    string
 	factory     ResourceFactory
-	pool        chan interface{}
+	pool        chan any
 	minSize     int
 	maxSize     int
 	currentSize int
@@ -57,7 +57,7 @@ func NewResourcePool(
 	pool := &ResourcePool{
 		poolName: poolName,
 		factory:  factory,
-		pool:     make(chan interface{}, config.MaxSize),
+		pool:     make(chan any, config.MaxSize),
 		minSize:  config.MinSize,
 		maxSize:  config.MaxSize,
 		logger:   logger,
@@ -78,7 +78,7 @@ func NewResourcePool(
 }
 
 // Get 获取资源
-func (p *ResourcePool) Get() (interface{}, error) {
+func (p *ResourcePool) Get() (any, error) {
 	select {
 	case resource := <-p.pool:
 		p.mutex.Lock()
@@ -176,7 +176,7 @@ func (p *ResourcePool) Close() {
 }
 
 // Put 将资源归还到池中
-func (p *ResourcePool) Put(resource interface{}) error {
+func (p *ResourcePool) Put(resource any) error {
 	if resource == nil {
 		return fmt.Errorf("%s 不能将nil资源归还到池中", p.poolName)
 	}
@@ -211,7 +211,7 @@ func (p *ResourcePool) Put(resource interface{}) error {
 }
 
 // Reset 重置资源状态（在归还前调用）
-func (p *ResourcePool) Reset(resource interface{}) error {
+func (p *ResourcePool) Reset(resource any) error {
 	// 尝试调用资源的Reset方法
 	if resetter, ok := resource.(interface{ Reset() error }); ok {
 		return resetter.Reset()

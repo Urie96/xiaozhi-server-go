@@ -75,7 +75,7 @@ func (p *Provider) ToTTS(text string) (string, error) {
 	defer conn.Close()
 
 	// 准备请求参数
-	reqParams := map[string]map[string]interface{}{
+	reqParams := map[string]map[string]any{
 		"app": {
 			"appid":   p.Config().AppID,
 			"token":   p.Config().Token,

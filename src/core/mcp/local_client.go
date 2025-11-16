@@ -10,7 +10,7 @@ import (
 	"github.com/sashabaranov/go-openai"
 )
 
-type HandlerFunc func(ctx context.Context, args map[string]interface{}) (interface{}, error)
+type HandlerFunc func(ctx context.Context, args map[string]any) (any, error)
 
 type LocalClient struct {
 	tools   []Tool
@@ -112,7 +112,7 @@ func (c *LocalClient) GetAvailableTools() []openai.Tool {
 			Function: &openai.FunctionDefinition{
 				Name:        fmt.Sprintf("local_%s", tool.Name),
 				Description: tool.Description,
-				Parameters: map[string]interface{}{
+				Parameters: map[string]any{
 					"type":       tool.InputSchema.Type,
 					"properties": tool.InputSchema.Properties,
 					"required":   tool.InputSchema.Required,
@@ -128,8 +128,8 @@ func (c *LocalClient) GetAvailableTools() []openai.Tool {
 func (c *LocalClient) CallTool(
 	ctx context.Context,
 	name string,
-	args map[string]interface{},
-) (interface{}, error) {
+	args map[string]any,
+) (any, error) {
 	// 检查工具是否存在
 	if !c.HasTool(name) {
 		return nil, fmt.Errorf("tool %s not found", name)

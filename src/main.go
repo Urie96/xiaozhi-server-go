@@ -16,7 +16,6 @@ import (
 	"syscall"
 	"time"
 	"xiaozhi-server-go/src/configs"
-	"xiaozhi-server-go/src/configs/database"
 	"xiaozhi-server-go/src/core/pool"
 	_ "xiaozhi-server-go/src/core/providers/asr/deepgram"
 	_ "xiaozhi-server-go/src/core/providers/asr/doubao"
@@ -38,25 +37,11 @@ import (
 	"xiaozhi-server-go/src/httpsvr/vision"
 	"xiaozhi-server-go/src/task"
 
-	"github.com/gin-contrib/cors"
-	"github.com/joho/godotenv"
-
 	"github.com/gin-gonic/gin"
 	"golang.org/x/sync/errgroup"
 )
 
 func LoadConfigAndLogger() (*configs.Config, *utils.Logger, error) {
-	// 加载 .env 文件
-	err := godotenv.Load()
-	if err != nil {
-		fmt.Println("未找到 .env 文件，使用系统环境变量")
-	}
-
-	// 初始化数据库连接
-	_, _, err = database.InitDB()
-	if err != nil {
-		fmt.Printf("数据库连接失败: %v\n", err)
-	}
 	// 加载配置,默认使用.config.yaml
 	config, err := configs.LoadConfig(os.Getenv("CONFIG_PATH"))
 	if err != nil {
@@ -72,8 +57,6 @@ func LoadConfigAndLogger() (*configs.Config, *utils.Logger, error) {
 	utils.DefaultLogger = logger
 	logger.Info("日志系统初始化成功,level:%s", config.Log.LogLevel)
 
-	database.SetLogger(logger)
-
 	return config, logger, nil
 }
 
@@ -86,7 +69,7 @@ func StartTransportServer(
 	// 初始化资源池管理器
 	poolManager, err := pool.NewPoolManager(config, logger)
 	if err != nil {
-		logger.Error(fmt.Sprintf("初始化资源池管理器失败: %v", err))
+		logger.Error("%s", fmt.Sprintf("初始化资源池管理器失败: %v", err))
 		return nil, fmt.Errorf("初始化资源池管理器失败: %v", err)
 	}
 
@@ -169,30 +152,6 @@ func StartHttpServer(
 	router := gin.Default()
 	router.SetTrustedProxies([]string{"0.0.0.0"})
 
-	// 配置全局CORS中间件
-	corsConfig := cors.Config{
-		AllowOrigins: []string{"*"}, // 生产环境应指定具体域名
-		AllowMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"},
-		AllowHeaders: []string{
-			"Origin",
-			"Content-Type",
-			"Accept",
-			"Authorization",
-			"X-Requested-With",
-			"Cache-Control",
-			"X-File-Name",
-			"client-id",
-			"device-id",
-		},
-		ExposeHeaders:    []string{"Content-Length"},
-		AllowCredentials: true,
-		MaxAge:           12 * time.Hour,
-	}
-	// 应用全局CORS中间件
-	router.Use(cors.New(corsConfig))
-
-	logger.Debug("全局CORS中间件已配置，支持OPTIONS预检请求")
-
 	// API路由全部挂载到/api前缀下
 	apiGroup := router.Group("/api")
 
@@ -208,7 +167,7 @@ func StartHttpServer(
 	// 启动OTA服务
 	otaService := ota.NewDefaultOTAService(config.Web.Websocket)
 	if err := otaService.Start(groupCtx, router, apiGroup); err != nil {
-		logger.Error("OTA 服务启动失败", err)
+		logger.Error("OTA 服务启动失败 %v", err)
 		return nil, err
 	}
 
@@ -335,5 +294,4 @@ func main() {
 	GracefulShutdown(cancel, logger, g)
 
 	logger.Info("程序已成功退出")
-	logger.Close()
 }

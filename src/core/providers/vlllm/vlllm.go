@@ -28,7 +28,7 @@ type Config struct {
 	MaxTokens   int
 	TopP        float64
 	Security    configs.SecurityConfig
-	Data        map[string]interface{}
+	Data        map[string]any
 }
 
 // Provider VLLLM提供者，直接处理多模态API
@@ -47,7 +47,7 @@ type OllamaRequest struct {
 	Model    string                 `json:"model"`
 	Messages []OllamaMessage        `json:"messages"`
 	Stream   bool                   `json:"stream"`
-	Options  map[string]interface{} `json:"options,omitempty"`
+	Options  map[string]any `json:"options,omitempty"`
 }
 
 // OllamaMessage Ollama消息结构
@@ -118,7 +118,7 @@ func (p *Provider) Initialize() error {
 		if p.config.BaseURL == "" {
 			p.config.BaseURL = "http://localhost:11434" // 默认Ollama地址
 		}
-		p.logger.Debug("Ollama VLLLM初始化成功 %v", map[string]interface{}{
+		p.logger.Debug("Ollama VLLLM初始化成功 %v", map[string]any{
 			"base_url": p.config.BaseURL,
 			"model":    p.config.ModelName,
 		})
@@ -127,7 +127,7 @@ func (p *Provider) Initialize() error {
 		return fmt.Errorf("不支持的VLLLM类型: %s", p.config.Type)
 	}
 
-	p.logger.Debug("VLLLM Provider初始化成功 %v", map[string]interface{}{
+	p.logger.Debug("VLLLM Provider初始化成功 %v", map[string]any{
 		"type":       p.config.Type,
 		"model_name": p.config.ModelName,
 	})
@@ -154,7 +154,7 @@ func (p *Provider) ResponseWithImage(ctx context.Context, sessionID string, mess
 		return nil, fmt.Errorf("图片处理失败: %v", err)
 	}
 
-	p.logger.Debug("开始调用多模态API %v", map[string]interface{}{
+	p.logger.Debug("开始调用多模态API %v", map[string]any{
 		"type":       p.config.Type,
 		"model_name": p.config.ModelName,
 		"text":       text,
@@ -287,7 +287,7 @@ func (p *Provider) responseWithOllamaVision(ctx context.Context, messages []prov
 			Model:    p.config.ModelName,
 			Messages: ollamaMessages,
 			Stream:   true,
-			Options: map[string]interface{}{
+			Options: map[string]any{
 				"temperature": p.config.Temperature,
 				"top_p":       p.config.TopP,
 			},
@@ -312,7 +312,7 @@ func (p *Provider) responseWithOllamaVision(ctx context.Context, messages []prov
 
 		req.Header.Set("Content-Type", "application/json")
 
-		p.logger.Info("向Ollama发送多模态请求", map[string]interface{}{
+		p.logger.Info("向Ollama发送多模态请求", map[string]any{
 			"url":   url,
 			"model": p.config.ModelName,
 			"text":  text,
@@ -328,7 +328,7 @@ func (p *Provider) responseWithOllamaVision(ctx context.Context, messages []prov
 
 		if resp.StatusCode != http.StatusOK {
 			responseChan <- fmt.Sprintf("【Ollama API返回错误: %d】", resp.StatusCode)
-			p.logger.Error("Ollama API返回错误", map[string]interface{}{
+			p.logger.Error("Ollama API返回错误", map[string]any{
 				"status_code": resp.StatusCode,
 				"status":      resp.Status,
 			})
