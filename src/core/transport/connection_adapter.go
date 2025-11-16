@@ -9,7 +9,6 @@ import (
 	"xiaozhi-server-go/src/core"
 	"xiaozhi-server-go/src/core/pool"
 	"xiaozhi-server-go/src/core/utils"
-	"xiaozhi-server-go/src/task"
 )
 
 // ConnectionContextAdapter 连接上下文适配器，完全兼容现有的ConnectionContext逻辑
@@ -31,7 +30,6 @@ func NewConnectionContextAdapter(
 	config *configs.Config,
 	providerSet *pool.ProviderSet,
 	poolManager *pool.PoolManager,
-	taskMgr *task.TaskManager,
 	logger *utils.Logger,
 	req *http.Request,
 ) *ConnectionContextAdapter {
@@ -95,11 +93,6 @@ func (a *ConnectionContextAdapter) Close() {
 	}
 }
 
-// GetSessionID 实现ConnectionHandler接口的GetSessionID方法
-func (a *ConnectionContextAdapter) GetSessionID() string {
-	return a.clientID
-}
-
 // IsActive 检查连接是否仍然活跃
 func (a *ConnectionContextAdapter) IsActive() bool {
 	return atomic.LoadInt32(&a.closed) == 0
@@ -145,7 +138,6 @@ func (a *ConnectionContextAdapter) CreateSafeCallback() func(func(*core.Connecti
 type DefaultConnectionHandlerFactory struct {
 	config      *configs.Config
 	poolManager *pool.PoolManager
-	taskMgr     *task.TaskManager
 	logger      *utils.Logger
 }
 
@@ -153,13 +145,11 @@ type DefaultConnectionHandlerFactory struct {
 func NewDefaultConnectionHandlerFactory(
 	config *configs.Config,
 	poolManager *pool.PoolManager,
-	taskMgr *task.TaskManager,
 	logger *utils.Logger,
 ) *DefaultConnectionHandlerFactory {
 	return &DefaultConnectionHandlerFactory{
 		config:      config,
 		poolManager: poolManager,
-		taskMgr:     taskMgr,
 		logger:      logger,
 	}
 }
@@ -175,18 +165,7 @@ func (f *DefaultConnectionHandlerFactory) CreateHandler(
 		f.logger.Error(fmt.Sprintf("获取提供者集合失败: %v", err))
 		return nil
 	}
-	// 检查conn是否有属性mcpManager
-	if holder, ok := conn.(MCPManagerHolder); ok {
-		if mgr := holder.GetMCPManager(); mgr != nil {
-			f.poolManager.ReturnMcpManager(providerSet.MCP)
-			providerSet.MCP = mgr
-			fmt.Println("使用已有的MCPManager创建handler")
-		} else {
-			fmt.Println("连接没有已有的MCPManager")
-		}
-	} else {
-		fmt.Println("连接没有MCPManagerHolder接口")
-	}
+	fmt.Println("连接没有MCPManagerHolder接口")
 
 	// 创建连接上下文适配器
 	adapter := NewConnectionContextAdapter(
@@ -194,7 +173,6 @@ func (f *DefaultConnectionHandlerFactory) CreateHandler(
 		f.config,
 		providerSet,
 		f.poolManager,
-		f.taskMgr,
 		f.logger,
 		req,
 	)

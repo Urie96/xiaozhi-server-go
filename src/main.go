@@ -35,7 +35,6 @@ import (
 	"xiaozhi-server-go/src/core/utils"
 	"xiaozhi-server-go/src/httpsvr/ota"
 	"xiaozhi-server-go/src/httpsvr/vision"
-	"xiaozhi-server-go/src/task"
 
 	"github.com/gin-gonic/gin"
 	"golang.org/x/sync/errgroup"
@@ -73,18 +72,10 @@ func StartTransportServer(
 		return fmt.Errorf("初始化资源池管理器失败: %v", err)
 	}
 
-	// 初始化任务管理器
-	taskMgr := task.NewTaskManager(task.ResourceConfig{
-		MaxWorkers:        12,
-		MaxTasksPerClient: 20,
-	})
-	taskMgr.Start()
-
 	// 创建连接处理器工厂
 	handlerFactory := transport.NewDefaultConnectionHandlerFactory(
 		config,
 		poolManager,
-		taskMgr,
 		logger,
 	)
 

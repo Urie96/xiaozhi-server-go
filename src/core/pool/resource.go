@@ -101,7 +101,7 @@ func (p *ResourcePool) Get() (any, error) {
 
 // initializePool 初始化资源池
 func (p *ResourcePool) initializePool() error {
-	for i := 0; i < p.minSize; i++ {
+	for range p.minSize {
 		resource, err := p.factory.Create()
 		if err != nil {
 			return err

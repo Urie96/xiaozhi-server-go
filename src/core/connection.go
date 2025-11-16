@@ -23,7 +23,6 @@ import (
 	"xiaozhi-server-go/src/core/providers/vlllm"
 	"xiaozhi-server-go/src/core/types"
 	"xiaozhi-server-go/src/core/utils"
-	"xiaozhi-server-go/src/task"
 
 	"github.com/google/uuid"
 	"github.com/sashabaranov/go-openai"
@@ -55,7 +54,6 @@ type ConnectionHandler struct {
 	logger           *utils.Logger
 	conn             Connection
 	closeOnce        sync.Once
-	taskMgr          *task.TaskManager
 	safeCallbackFunc func(func(*ConnectionHandler)) func()
 	providers        struct {
 		asr   providers.ASRProvider
@@ -222,33 +220,6 @@ func NewConnectionHandler(
 
 func (h *ConnectionHandler) SetTaskCallback(callback func(func(*ConnectionHandler)) func()) {
 	h.safeCallbackFunc = callback
-}
-
-func (h *ConnectionHandler) SubmitTask(taskType string, params map[string]any) {
-	_task, id := task.NewTask(h.ctx, "", params)
-	h.LogInfo(fmt.Sprintf("提交任务: %s, ID: %s, 参数: %v", _task.Type, id, params))
-	// 创建安全回调用于任务完成时调用
-	var taskCallback func(result any)
-	if h.safeCallbackFunc != nil {
-		taskCallback = func(result any) {
-			fmt.Print("任务完成回调: ")
-			safeCallback := h.safeCallbackFunc(func(handler *ConnectionHandler) {
-				// 处理任务完成逻辑
-				handler.handleTaskComplete(_task, id, result)
-			})
-			// 执行安全回调
-			if safeCallback != nil {
-				safeCallback()
-			}
-		}
-	}
-	cb := task.NewCallBack(taskCallback)
-	_task.Callback = cb
-	h.taskMgr.SubmitTask(h.sessionID, _task)
-}
-
-func (h *ConnectionHandler) handleTaskComplete(task *task.Task, id string, result any) {
-	h.LogInfo(fmt.Sprintf("任务 %s 完成，ID: %s, %v", task.Type, id, result))
 }
 
 func (h *ConnectionHandler) LogInfo(msg string) {
