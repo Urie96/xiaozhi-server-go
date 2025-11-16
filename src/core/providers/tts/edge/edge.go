@@ -64,7 +64,7 @@ func (p *Provider) ToTTS(text string) (string, error) {
 
 	ttsDuration := time.Since(edgeTTSStartTime)
 	_ = ttsDuration
-	//fmt.Println(fmt.Sprintf("edge-tts-go 语音合成完成，耗时: %s", ttsDuration))
+	// fmt.Println(fmt.Sprintf("edge-tts-go 语音合成完成，耗时: %s", ttsDuration))
 
 	// 将音频数据写入临时文件
 	err = os.WriteFile(tempFile, audioData, 0644)
@@ -76,15 +76,8 @@ func (p *Provider) ToTTS(text string) (string, error) {
 	if _, err := os.Stat(tempFile); os.IsNotExist(err) {
 		return "", fmt.Errorf("edge-tts-go 未能创建音频文件: %s", tempFile)
 	}
-	//fmt.Printf("音频文件已生成: %s\n", tempFile)
+	// fmt.Printf("音频文件已生成: %s\n", tempFile)
 
 	// Return the path to the generated audio file
 	return tempFile, nil
-}
-
-func init() {
-	// 注册Edge TTS提供者
-	tts.Register("edge", func(config *tts.Config, deleteFile bool) (tts.Provider, error) {
-		return NewProvider(config, deleteFile)
-	})
 }

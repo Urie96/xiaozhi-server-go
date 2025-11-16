@@ -109,7 +109,7 @@ ASR:
     appid: "你的appid"
     access_token: 你的access_token
     output_dir: tmp/
-    end_window_size: 300  # 结束窗口大小，单位毫秒，默认400ms，最小200ms
+    end_window_size: 300 # 结束窗口大小，单位毫秒，默认400ms，最小200ms
 
   GoSherpaASR:
     type: gosherpa
@@ -137,65 +137,6 @@ TTS:
     type: edge
     voice: zh-CN-XiaoxiaoNeural
     output_dir: "tmp/"
-    supported_voices:
-      [
-        {
-          name: "zh-CN-XiaoxiaoNeural",
-          display_name: "晓晓",
-          sex: "女",
-          description: "商务知性风格，音色成熟清晰，适合新闻播报、专业内容朗读",
-          audio_url: "",
-        },
-        {
-          name: "zh-CN-XiaoyiNeural",
-          display_name: "晓伊",
-          sex: "女",
-          description: "柔和温暖风格，带自然呼吸感，适合故事叙述或客服场景",
-          audio_url: "",
-        },
-        {
-          name: "zh-CN-YunjianNeural",
-          display_name: "云健",
-          sex: "男",
-          description: "沉稳磁性男声，权威感强，适合男性角色配音或严肃内容",
-          audio_url: "",
-        },
-        {
-          name: "zh-CN-YunxiNeural",
-          display_name: "云希",
-          sex: "男",
-          description: "年轻活力风格，语速轻快，适合青少年角色或轻松场景",
-          audio_url: "",
-        },
-        {
-          name: "zh-CN-YunxiaNeural",
-          display_name: "云夏",
-          sex: "男",
-          description: "方言特色（东北腔），幽默接地气，适合娱乐内容",
-          audio_url: "",
-        },
-        {
-          name: "zh-CN-YunyangNeural",
-          display_name: "云扬",
-          sex: "男",
-          description: "明亮自信风格，中气十足，适合广告宣传或公开演讲",
-          audio_url: "",
-        },
-        {
-          name: "zh-CN-liaoning-XiaobeiNeural",
-          display_name: "晓北（辽宁）",
-          sex: "女",
-          description: "带东北方言特色，亲切直率，适合地方化内容",
-          audio_url: "",
-        },
-        {
-          name: "zh-CN-shaanxi-XiaoniNeural",
-          display_name: "晓妮（陕西）",
-          sex: "女",
-          description: "陕西口音风格，质朴热情，适合方言文化场景",
-          audio_url: "",
-        },
-      ]
 
   DoubaoTTS:
     # 火山语音合成大模型 https://console.volcengine.com/ark/region:ark+cn-beijing/tts/speechSynthesis
@@ -295,15 +236,3 @@ VLLLM:
       allowed_formats: ["jpeg", "jpg", "png", "webp", "gif"]
       enable_deep_scan: true
       validation_timeout: 10s
-
-# 连接池配置
-pool_config:
-  pool_min_size: 5
-  pool_max_size: 20
-  pool_refill_size: 3
-  pool_check_interval: 30
-mcp_pool_config:
-  pool_min_size: 5
-  pool_max_size: 20
-  pool_refill_size: 3
-  pool_check_interval: 30

@@ -147,7 +147,6 @@ func (m *Manager) BindConnection(
 	visionURL := paramsMap["vision_url"].(string)
 	deviceID := paramsMap["device_id"].(string)
 	clientID := paramsMap["client_id"].(string)
-	token := paramsMap["token"].(string)
 	m.logger.Debug("绑定连接到MCP Manager, sessionID: %s, visionURL: %s", sessionID, visionURL)
 	if !m.isInitialized {
 		m.logger.Info("BindConnection, MCP Manager未初始化，预初始化MCP服务器")
@@ -159,7 +158,6 @@ func (m *Manager) BindConnection(
 		m.XiaoZhiMCPClient = NewXiaoZhiMCPClient(m.logger, conn, sessionID)
 		m.XiaoZhiMCPClient.SetVisionURL(visionURL)
 		m.XiaoZhiMCPClient.SetID(deviceID, clientID)
-		m.XiaoZhiMCPClient.SetToken(token)
 
 		if err := m.XiaoZhiMCPClient.Start(context.Background()); err != nil {
 			return fmt.Errorf("启动XiaoZhi MCP客户端失败: %v", err)
@@ -168,7 +166,6 @@ func (m *Manager) BindConnection(
 		// 重新绑定连接而不是重新创建
 		m.XiaoZhiMCPClient.SetConnection(conn)
 		m.XiaoZhiMCPClient.SetID(deviceID, clientID)
-		m.XiaoZhiMCPClient.SetToken(token)
 		if !m.XiaoZhiMCPClient.IsReady() {
 			m.logger.Info("XiaoZhi MCP客户端未就绪，重新启动")
 			if err := m.XiaoZhiMCPClient.Start(context.Background()); err != nil {

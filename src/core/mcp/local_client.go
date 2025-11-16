@@ -56,18 +56,12 @@ func (c *LocalClient) RegisterTools() {
 		} else if localFunc.Name == "time" && localFunc.Enabled {
 			c.AddToolTime()
 			c.logger.Info("RegisterTools: time tool registered")
-		} else if localFunc.Name == "change_voice" && localFunc.Enabled {
-			c.AddToolChangeVoice()
-			c.logger.Info("RegisterTools: change_voice tool registered")
 		} else if localFunc.Name == "change_role" && localFunc.Enabled {
 			c.AddToolChangeRole()
 			c.logger.Info("RegisterTools: change_role tool registered")
 		} else if localFunc.Name == "play_music" && localFunc.Enabled {
 			c.AddToolPlayMusic()
 			c.logger.Info("RegisterTools: play_music tool registered")
-		} else if localFunc.Name == "switch_agent" && localFunc.Enabled {
-			c.AddToolSwitchAgent()
-			c.logger.Info("RegisterTools: switch_agent tool registered")
 		} else {
 			if localFunc.Enabled {
 				c.logger.Warn("RegisterTools: unknown function name %s", localFunc.Name)

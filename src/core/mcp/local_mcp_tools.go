@@ -2,9 +2,7 @@ package mcp
 
 import (
 	"context"
-	"strings"
 	"time"
-	"xiaozhi-server-go/src/configs"
 	"xiaozhi-server-go/src/core/types"
 )
 
@@ -104,46 +102,6 @@ func (c *LocalClient) AddToolChangeRole() error {
 						"role":   role, // 函数参数
 						"prompt": prompts[role],
 					},
-				},
-			}
-			return res, nil
-		})
-
-	return nil
-}
-
-func (c *LocalClient) AddToolChangeVoice() error {
-	voices := []configs.VoiceInfo{}
-	if ttsType, ok := c.cfg.SelectedModule["TTS"]; ok && ttsType != "" {
-		voices = c.cfg.TTS[ttsType].SupportedVoices
-	}
-	voiceDesArr := []string{}
-	for _, v := range voices {
-		voiceDesArr = append(voiceDesArr, v.Name+"("+v.DisplayName+"-"+v.Sex+")："+v.Description)
-	}
-	voiceDes := strings.Join(voiceDesArr, ", ")
-
-	InputSchema := ToolInputSchema{
-		Type: "object",
-		Properties: map[string]any{
-			"voice": map[string]any{
-				"type":        "string",
-				"description": "新的语音名称，音色描述中的第一部分",
-			},
-		},
-		Required: []string{"voice"},
-	}
-
-	c.AddTool("change_voice",
-		"当用户想要更换角色语音或音色时调用，当前支持的音色有: "+voiceDes,
-		InputSchema,
-		func(ctx context.Context, args map[string]any) (interface{}, error) {
-			voice := args["voice"].(string)
-			res := types.ActionResponse{
-				Action: types.ActionTypeCallHandler, // 动作类型
-				Result: types.ActionResponseCall{
-					FuncName: "mcp_handler_change_voice", // 函数名
-					Args:     voice,                      // 函数参数
 				},
 			}
 			return res, nil

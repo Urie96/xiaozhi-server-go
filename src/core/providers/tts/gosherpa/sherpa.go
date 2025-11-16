@@ -54,7 +54,6 @@ func (p *Provider) ToTTS(text string) (string, error) {
 
 	p.conn.WriteMessage(websocket.TextMessage, []byte(text))
 	_, bytes, err := p.conn.ReadMessage()
-
 	if err != nil {
 		return "", fmt.Errorf("go-sherpa-tts 获取音频流失败: %v", err)
 	}
@@ -75,11 +74,4 @@ func (p *Provider) ToTTS(text string) (string, error) {
 
 	// Return the path to the generated audio file
 	return tempFile, nil
-}
-
-func init() {
-	// 注册Sherpa TTS提供者
-	tts.Register("gosherpa", func(config *tts.Config, deleteFile bool) (tts.Provider, error) {
-		return NewProvider(config, deleteFile)
-	})
 }

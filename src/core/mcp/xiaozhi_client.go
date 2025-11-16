@@ -7,7 +7,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-	"xiaozhi-server-go/src/core/auth"
 	"xiaozhi-server-go/src/core/types"
 	"xiaozhi-server-go/src/core/utils"
 
@@ -41,7 +40,6 @@ type XiaoZhiMCPClient struct {
 	visionURL       string // 视觉服务URL
 	deviceID        string // 设备ID，用于标识设备
 	clientID        string // 客户端ID，用于标识客户端
-	token           string // 访问令牌
 	// 工具名称映射：sanitized name -> original name
 	toolNameMap map[string]string
 }
@@ -74,19 +72,6 @@ func (c *XiaoZhiMCPClient) SetID(deviceID string, clientID string) {
 	c.clientID = clientID // 使用clientID作为会话ID
 }
 
-func (c *XiaoZhiMCPClient) SetToken(token string) {
-	auth := auth.NewAuthToken(token)
-	visionToken, err := auth.GenerateToken(c.deviceID)
-	if err != nil {
-		c.logger.Error(fmt.Sprintf("生成Vision Token失败: %v", err))
-		return
-	}
-
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.token = visionToken
-}
-
 func (c *XiaoZhiMCPClient) SetVisionURL(visionURL string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -105,7 +90,6 @@ func (c *XiaoZhiMCPClient) ResetConnection() error {
 	c.callResults = make(map[int]chan interface{})
 	c.clientID = "" // 清除客户端ID
 	c.deviceID = "" // 清除设备ID
-	c.token = ""    // 清除访问令牌
 
 	return nil
 }
@@ -350,8 +334,7 @@ func (c *XiaoZhiMCPClient) SendMCPInitializeMessage() error {
 					},
 					"sampling": map[string]interface{}{},
 					"vision": map[string]interface{}{
-						"url":   c.visionURL,
-						"token": c.token,
+						"url": c.visionURL,
 					},
 				},
 				"clientInfo": map[string]interface{}{

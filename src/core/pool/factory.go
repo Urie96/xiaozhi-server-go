@@ -122,15 +122,14 @@ func NewTTSFactory(ttsType string, config *configs.Config, logger *utils.Logger)
 		return &ProviderFactory{
 			providerType: "tts",
 			config: &tts.Config{
-				Name:            ttsType,
-				Type:            ttsCfg.Type,
-				Voice:           ttsCfg.Voice,
-				Format:          ttsCfg.Format,
-				OutputDir:       ttsCfg.OutputDir,
-				AppID:           ttsCfg.AppID,
-				Token:           ttsCfg.Token,
-				Cluster:         ttsCfg.Cluster,
-				SupportedVoices: ttsCfg.SupportedVoices,
+				Name:      ttsType,
+				Type:      ttsCfg.Type,
+				Voice:     ttsCfg.Voice,
+				Format:    ttsCfg.Format,
+				OutputDir: ttsCfg.OutputDir,
+				AppID:     ttsCfg.AppID,
+				Token:     ttsCfg.Token,
+				Cluster:   ttsCfg.Cluster,
 			},
 			logger: logger,
 			params: map[string]interface{}{

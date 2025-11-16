@@ -26,7 +26,6 @@ import (
 	_ "xiaozhi-server-go/src/core/providers/llm/doubao"
 	_ "xiaozhi-server-go/src/core/providers/llm/ollama"
 	_ "xiaozhi-server-go/src/core/providers/llm/openai"
-	_ "xiaozhi-server-go/src/core/providers/tts/deepgram"
 	_ "xiaozhi-server-go/src/core/providers/tts/doubao"
 	_ "xiaozhi-server-go/src/core/providers/tts/edge"
 	_ "xiaozhi-server-go/src/core/providers/tts/gosherpa"
@@ -74,7 +73,6 @@ func LoadConfigAndLogger() (*configs.Config, *utils.Logger, error) {
 	logger.Info("日志系统初始化成功,level:%s 配置文件路径: %s", config.Log.LogLevel, configPath)
 
 	database.SetLogger(logger)
-	database.InsertDefaultConfigIfNeeded(database.GetDB())
 
 	return config, logger, nil
 }
@@ -205,8 +203,6 @@ func StartHttpServer(
 			c.JSON(404, gin.H{"error": "api Not found"})
 			return
 		}
-
-		c.File("./web/index.html")
 	})
 
 	// 启动OTA服务

@@ -12,7 +12,6 @@ import (
 	"sync/atomic"
 	"time"
 	"xiaozhi-server-go/src/configs"
-	"xiaozhi-server-go/src/configs/database"
 	"xiaozhi-server-go/src/core/chat"
 	"xiaozhi-server-go/src/core/function"
 	"xiaozhi-server-go/src/core/image"
@@ -222,15 +221,11 @@ func NewConnectionHandler(
 		handler.providers.vlllm = providerSet.VLLLM
 		handler.mcpManager = providerSet.MCP
 	}
-	agent, prompt := handler.InitWithAgent()
-	handler.checkTTSProvider(agent, config) // 检查TTS提供者
-	handler.checkLLMProvider(agent, config) // 检查LLM提供者是否匹配
-
 	handler.quickReplyCache = utils.NewQuickReplyCache(handler.ttsProviderName, handler.voiceName)
 
 	// 初始化对话管理器
 	handler.dialogueManager = chat.NewDialogueManager(handler.logger, nil)
-	handler.dialogueManager.SetSystemMessage(prompt)
+	handler.dialogueManager.SetSystemMessage(handler.config.DefaultPrompt)
 	handler.functionRegister = function.NewFunctionRegistry()
 	handler.initMCPResultHandlers()
 
@@ -246,164 +241,6 @@ func (h *ConnectionHandler) InitWithAgent() (*models.Agent, string) {
 	}
 	prompt := h.config.DefaultPrompt
 	return agent, prompt
-}
-
-func (h *ConnectionHandler) checkTTSProvider(agent *models.Agent, config *configs.Config) {
-	h.ttsProviderName = "default" // 默认TTS提供者名称
-	h.voiceName = "default"
-	if getter, ok := h.providers.tts.(ttsConfigGetter); ok {
-
-		userID := database.AdminUserID
-		alltts, err := database.GetProviderByTypeInternal("TTS", userID, false)
-		if err == nil {
-			for name, data := range alltts {
-
-				cfg := configs.TTSConfig{}
-				if err := json.Unmarshal([]byte(data), &cfg); err != nil {
-					h.LogError(fmt.Sprintf("反序列化用户 %d 的 TTS 提供者 %s 配置失败: %v", userID, name, err))
-					continue
-				}
-				// h.LogInfo(fmt.Sprintf("用户 %d 的 TTS 提供者: %s, 配置: %v", userID, name, cfg))
-				config.TTS[name] = cfg // 更新配置
-			}
-		} else {
-			h.LogError(fmt.Sprintf("获取用户 %d 的 TTS 提供者失败: %v", userID, err))
-		}
-
-		h.ttsProviderName = getter.Config().Type
-		// 从agent配置中获取
-		h.voiceName = getter.Config().Voice
-		if agent != nil && agent.Voice != "" {
-			err, newVoice := h.providers.tts.SetVoice(agent.Voice) // 设置TTS语音
-			if err != nil {
-				// 检查是否是其他tts支持的音色
-				bChangeTTSSucc := false
-				for name, cfg := range config.TTS {
-					if bSupport, newVoice2, _ := tts.IsSupportedVoice(agent.Voice, cfg.SupportedVoices); bSupport {
-						ttsCfg := &tts.Config{
-							Name:            name,
-							Type:            cfg.Type,
-							OutputDir:       cfg.OutputDir,
-							Voice:           newVoice2,
-							Format:          cfg.Format,
-							SampleRate:      h.serverAudioSampleRate,
-							AppID:           cfg.AppID,
-							Token:           cfg.Token,
-							Cluster:         cfg.Cluster,
-							SupportedVoices: cfg.SupportedVoices,
-						}
-						newVoice = newVoice2
-						newtts, err := tts.Create(cfg.Type, ttsCfg, false)
-						if err == nil {
-							h.providers.tts = newtts
-							bChangeTTSSucc = true
-							h.ttsProviderName = cfg.Type
-							h.LogInfo(fmt.Sprintf("已切换TTS提供者到: %s, 语音名称: %s, v:%s", name, agent.Voice, newVoice))
-							break
-						} else {
-							h.LogError(fmt.Sprintf("创建TTS提供者失败: %v", err))
-						}
-					} else {
-						h.LogInfo(fmt.Sprintf("Agent %d 的语音 %s 在 TTS 提供者 %s 中不受支持", agent.ID, agent.Voice, name))
-					}
-				}
-				if !bChangeTTSSucc {
-					h.LogError(fmt.Sprintf("设置TTS语音为agent配置失败: %v", err))
-				} else {
-					h.voiceName = newVoice
-				}
-			} else {
-				h.voiceName = newVoice
-			}
-		}
-		h.initialVoice = h.voiceName // 保存初始语音名称
-	}
-	h.logger.Info("使用TTS提供者: %s, 语音名称: %s", h.ttsProviderName, h.voiceName)
-}
-
-func (h *ConnectionHandler) checkLLMProvider(agent *models.Agent, config *configs.Config) {
-	if agent == nil {
-		return
-	}
-	agentLLMName := agent.LLM
-	// 从agent里获取extra
-	apiKey := ""
-	baseUrl := ""
-	if agent.Extra != "" {
-		// 解析Extra字段
-		var extra map[string]interface{}
-		if err := json.Unmarshal([]byte(agent.Extra), &extra); err == nil {
-			if key, ok := extra["api_key"].(string); ok {
-				apiKey = key
-			}
-			if url, ok := extra["base_url"].(string); ok {
-				baseUrl = url
-			}
-		} else {
-			h.LogError(fmt.Sprintf("Agent %d 的 Extra 字段格式错误: %v， err:%v", agent.ID, agent.Extra, err))
-		}
-	}
-	// 判断handler.providers.llm 类型是否和 agent.LLM 相同
-	if getter, ok := h.providers.llm.(llmConfigGetter); ok {
-		// 从数据库加载用户私有的LLM配置
-		userID := database.AdminUserID
-		llms, err := database.GetProviderByTypeInternal("LLM", userID, false)
-		if err == nil {
-			for name, data := range llms {
-
-				cfg := configs.LLMConfig{}
-				if err := json.Unmarshal([]byte(data), &cfg); err != nil {
-					h.LogError(fmt.Sprintf("反序列化用户 %d 的 LLM 提供者 %s 配置失败: %v", userID, name, err))
-					continue
-				}
-				// h.LogInfo(fmt.Sprintf("用户 %d 的 LLM 提供者: %s, 配置: %v", userID, name, cfg))
-				config.LLM[name] = cfg // 更新配置
-			}
-		} else {
-			h.LogError(fmt.Sprintf("获取用户 %d 的 LLM 提供者失败: %v", userID, err))
-		}
-
-		llmName := getter.Config().Name
-		if llmName != agentLLMName {
-			// 根据agent.LLM类型设置LLM提供者
-			if cfg, ok := config.LLM[agentLLMName]; !ok {
-				h.LogError(fmt.Sprintf("Agent %d 的 LLM 类型 %s 不存在", h.agentID, agentLLMName))
-			} else {
-				if apiKey != "" {
-					cfg.APIKey = apiKey // 使用Agent的API密钥
-				}
-				if baseUrl != "" {
-					cfg.BaseURL = baseUrl // 使用Agent的BaseURL
-				}
-				llmCfg := &llm.Config{
-					Name:        agentLLMName,
-					Type:        cfg.Type,
-					ModelName:   cfg.ModelName,
-					BaseURL:     cfg.BaseURL,
-					APIKey:      cfg.APIKey,
-					Temperature: cfg.Temperature,
-					MaxTokens:   cfg.MaxTokens,
-					TopP:        cfg.TopP,
-					Extra:       cfg.Extra,
-				}
-				newllm, err := llm.Create(cfg.Type, llmCfg)
-				if err != nil {
-					h.LogError(fmt.Sprintf("创建LLM提供者失败: %v", err))
-				} else {
-					h.providers.llm = newllm
-					h.LogInfo(fmt.Sprintf("已切换Agent %d 的 LLM 提供者到: %s", h.agentID, agentLLMName))
-				}
-			}
-		} else {
-			if apiKey != "" {
-				getter.Config().APIKey = apiKey
-			}
-			if baseUrl != "" {
-				getter.Config().BaseURL = baseUrl
-			}
-			h.LogInfo(fmt.Sprintf("使用Agent %d 的 LLM 类型: %s, BaseURL:%s", h.agentID, llmName, getter.Config().BaseURL))
-		}
-	}
 }
 
 func (h *ConnectionHandler) SetTaskCallback(callback func(func(*ConnectionHandler)) func()) {
@@ -604,10 +441,7 @@ func (h *ConnectionHandler) clientAbortChat() error {
 
 func (h *ConnectionHandler) QuitIntent(text string) bool {
 	// CMD_exit 读取配置中的退出命令
-	exitCommands := h.config.CMDExit
-	if exitCommands == nil {
-		return false
-	}
+	exitCommands := []string{"退出", "关闭"}
 	cleand_text := utils.RemoveAllPunctuation(text) // 移除标点符号，确保匹配准确
 	// 检查是否包含退出命令
 	for _, cmd := range exitCommands {

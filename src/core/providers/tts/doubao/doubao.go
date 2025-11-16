@@ -12,7 +12,6 @@ import (
 	"os"
 	"path/filepath"
 	"time"
-
 	"xiaozhi-server-go/src/core/providers/tts"
 
 	"github.com/google/uuid"
@@ -190,30 +189,24 @@ func (p *Provider) parseResponse(res []byte) (resp synResp, err error) {
 				resp.IsLast = true
 			}
 		}
-       case 0xf: // error message
-	       if len(payload) < 8 {
-		       return resp, fmt.Errorf("错误消息数据长度不足")
-	       }
-	       code := int32(binary.BigEndian.Uint32(payload[0:4]))
-	       errMsg := payload[8:]
-	       // 总是尝试 gzip 解压
-	       r, gzErr := gzip.NewReader(bytes.NewReader(errMsg))
-	       if gzErr == nil {
-		       if errMsg2, err2 := io.ReadAll(r); err2 == nil {
-			       errMsg = errMsg2
-		       }
-		       r.Close()
-	       }
-	       return resp, fmt.Errorf("服务器错误 [%d]: %s", code, string(errMsg))
+	case 0xf: // error message
+		if len(payload) < 8 {
+			return resp, fmt.Errorf("错误消息数据长度不足")
+		}
+		code := int32(binary.BigEndian.Uint32(payload[0:4]))
+		errMsg := payload[8:]
+		// 总是尝试 gzip 解压
+		r, gzErr := gzip.NewReader(bytes.NewReader(errMsg))
+		if gzErr == nil {
+			if errMsg2, err2 := io.ReadAll(r); err2 == nil {
+				errMsg = errMsg2
+			}
+			r.Close()
+		}
+		return resp, fmt.Errorf("服务器错误 [%d]: %s", code, string(errMsg))
 	default:
 		return resp, fmt.Errorf("未知的消息类型: %d", messageType)
 	}
 
 	return resp, nil
-}
-
-func init() {
-	tts.Register("doubao", func(config *tts.Config, deleteFile bool) (tts.Provider, error) {
-		return NewProvider(config, deleteFile)
-	})
 }

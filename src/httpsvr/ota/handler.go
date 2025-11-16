@@ -12,7 +12,6 @@ import (
 	"time"
 	"xiaozhi-server-go/src/configs"
 	"xiaozhi-server-go/src/core/utils"
-	"xiaozhi-server-go/src/models"
 
 	"github.com/gin-gonic/gin"
 )
@@ -233,8 +232,6 @@ func (s *DefaultOTAService) handlePostOTA(c *gin.Context) {
 	// 兼容转换到 OTARequestBody
 	var req OTARequestBody = s.Trans2OTARequestBody(raw)
 
-	clientID := c.GetHeader("client-id")
-	client_id := "CGID_test@@@" + strings.Replace(deviceID, ":", "_", -1) + "@@@" + clientID
 	version := req.Application.Version
 	if version == "" {
 		version = "1.0.0"
@@ -254,8 +251,6 @@ func (s *DefaultOTAService) handlePostOTA(c *gin.Context) {
 	}
 	cfg := configs.Cfg
 	updateURL := cfg.Web.Websocket
-	deviceName := req.Board.Name
-	s.CheckAndUpdateDevice(c, cfg, req, deviceID, client_id, deviceName, version)
 	resp := OtaFirmwareResponse{}
 	resp.ServerTime.Timestamp = time.Now().UnixNano() / 1e6
 	resp.ServerTime.TimezoneOffset = 8 * 60
@@ -270,32 +265,6 @@ func (s *DefaultOTAService) handlePostOTA(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, resp)
-}
-
-func (s *DefaultOTAService) CheckAndUpdateDevice(
-	c *gin.Context,
-	cfg *configs.Config,
-	req OTARequestBody,
-	deviceID, clientID, deviceName, version string,
-) *models.Device {
-	device := &models.Device{
-		DeviceID:         deviceID,   // 设置设备ID
-		ClientID:         clientID,   // 设置客户端ID
-		Name:             deviceName, // 设置设备名称
-		Version:          version,    // 设置设备版本
-		RegisterTimeV2:   time.Now(),
-		LastActiveTimeV2: time.Now(),
-		BoardType:        req.Board.Type,    // 设置主板类型
-		ChipModelName:    req.ChipModelName, // 设置芯片型号
-		Channel:          req.Board.Channel, // 设置WiFi频道
-		SSID:             req.Board.SSID,    // 设置WiFi SSID
-		Language:         req.Language,      // 设置语言
-		OTA:              true,              // 设置支持OTA升级
-		AgentID:          nil,               // 初始AgentID为nil
-	}
-	appBytes, _ := json.Marshal(req.Application)
-	device.Application = string(appBytes)
-	return device
 }
 
 // HandleFirmwareDownload 处理 /ota_bin/:filename 下载

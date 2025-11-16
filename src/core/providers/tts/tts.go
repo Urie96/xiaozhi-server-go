@@ -4,23 +4,20 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"xiaozhi-server-go/src/configs"
 	"xiaozhi-server-go/src/core/providers"
-	"xiaozhi-server-go/src/core/utils"
 )
 
 // Config TTS配置结构
 type Config struct {
-	Name            string              `yaml:"name"` // TTS提供者名称
-	Type            string              `yaml:"type"`
-	OutputDir       string              `yaml:"output_dir"`
-	Voice           string              `yaml:"voice,omitempty"`
-	Format          string              `yaml:"format,omitempty"`
-	SampleRate      int                 `yaml:"sample_rate,omitempty"`
-	AppID           string              `yaml:"appid"`
-	Token           string              `yaml:"token"`
-	Cluster         string              `yaml:"cluster"`
-	SupportedVoices []configs.VoiceInfo `yaml:"supported_voices"` // 支持的语音列表
+	Name       string `yaml:"name"` // TTS提供者名称
+	Type       string `yaml:"type"`
+	OutputDir  string `yaml:"output_dir"`
+	Voice      string `yaml:"voice,omitempty"`
+	Format     string `yaml:"format,omitempty"`
+	SampleRate int    `yaml:"sample_rate,omitempty"`
+	AppID      string `yaml:"appid"`
+	Token      string `yaml:"token"`
+	Cluster    string `yaml:"cluster"`
 }
 
 // Provider TTS提供者接口
@@ -58,49 +55,6 @@ func (p *BaseProvider) Initialize() error {
 		return fmt.Errorf("创建输出目录失败: %v", err)
 	}
 	return nil
-}
-
-func IsSupportedVoice(voice string, supportedVoices []configs.VoiceInfo) (bool, string, error) {
-	if voice == "" {
-		return false, "", fmt.Errorf("声音不能为空")
-	}
-	cnNames := map[string]string{}
-	enNames := map[string]string{}
-	voiceNames := []string{}
-	for _, v := range supportedVoices {
-		cnNames[v.DisplayName] = v.Name // 中文名
-		enNames[v.Name] = v.Name        // 英文名（实际是音色名）
-		voiceNames = append(voiceNames, v.Name)
-	}
-
-	// 如果是中文名，则转换为音色名称
-	if enVoice, ok := cnNames[voice]; ok {
-		voice = enVoice
-	}
-
-	// 如果是英文名，则转换为音色名称
-	if enVoice, ok := enNames[voice]; ok {
-		voice = enVoice
-	}
-
-	// 检查声音是否在支持的列表中
-	if !utils.IsInArray(voice, voiceNames) {
-		return false, "", fmt.Errorf("不支持的声音: %s, 可用声音: %v", voice, voiceNames)
-	}
-
-	return true, voice, nil
-}
-
-func (p *BaseProvider) SetVoice(voice string) (error, string) {
-	isSupported, newVoice, err := IsSupportedVoice(voice, p.config.SupportedVoices)
-	if err != nil {
-		return err, ""
-	}
-	if !isSupported {
-		return fmt.Errorf("不支持的声音: %s", voice), ""
-	}
-	p.Config().Voice = newVoice
-	return nil, newVoice
 }
 
 // Cleanup 清理资源

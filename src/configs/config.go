@@ -73,15 +73,10 @@ type Config struct {
 
 	SelectedModule map[string]string `yaml:"selected_module" json:"selected_module"`
 
-	PoolConfig    PoolConfig    `yaml:"pool_config"`
-	McpPoolConfig McpPoolConfig `yaml:"mcp_pool_config"`
-
 	ASR   map[string]ASRConfig  `yaml:"ASR"   json:"ASR"`
 	TTS   map[string]TTSConfig  `yaml:"TTS"   json:"TTS"`
 	LLM   map[string]LLMConfig  `yaml:"LLM"   json:"LLM"`
 	VLLLM map[string]VLLMConfig `yaml:"VLLLM" json:"VLLLM"`
-
-	CMDExit []string `yaml:"CMD_exit" json:"CMD_exit"`
 }
 
 type LocalMCPFun struct {
@@ -96,41 +91,18 @@ type Role struct {
 	Enabled     bool   `yaml:"enabled"      json:"enabled"`     // 是否启用
 }
 
-type PoolConfig struct {
-	PoolMinSize       int `yaml:"pool_min_size"`
-	PoolMaxSize       int `yaml:"pool_max_size"`
-	PoolRefillSize    int `yaml:"pool_refill_size"`
-	PoolCheckInterval int `yaml:"pool_check_interval"`
-}
-type McpPoolConfig struct {
-	PoolMinSize       int `yaml:"pool_min_size"`
-	PoolMaxSize       int `yaml:"pool_max_size"`
-	PoolRefillSize    int `yaml:"pool_refill_size"`
-	PoolCheckInterval int `yaml:"pool_check_interval"`
-}
-
 // ASRConfig ASR配置结构
 type ASRConfig map[string]interface{}
 
-type VoiceInfo struct {
-	Name        string `yaml:"name"         json:"name"`         // 语音名称，对应tts的音色字符串，如 zh_female_wanwanxiaohe_moon_bigtts
-	Language    string `yaml:"language"     json:"language"`     // 语言，标记语种，用于前端选择
-	DisplayName string `yaml:"display_name" json:"display_name"` // 显示名称，前端显示用，如湾湾小何
-	Sex         string `yaml:"sex"          json:"sex"`          // 性别，男/女
-	Description string `yaml:"description"  json:"description"`  // 音色的描述信息
-	AudioURL    string `yaml:"audio_url"    json:"audio_url"`    // 音频URL，用于试听
-}
-
 // TTSConfig TTS配置结构
 type TTSConfig struct {
-	Type            string      `yaml:"type"             json:"type"`             // TTS类型
-	Voice           string      `yaml:"voice"            json:"voice"`            // 语音名称
-	Format          string      `yaml:"format"           json:"format"`           // 输出格式
-	OutputDir       string      `yaml:"output_dir"       json:"output_dir"`       // 输出目录
-	AppID           string      `yaml:"appid"            json:"appid"`            // 应用ID
-	Token           string      `yaml:"token"            json:"token"`            // API密钥
-	Cluster         string      `yaml:"cluster"          json:"cluster"`          // 集群信息
-	SupportedVoices []VoiceInfo `yaml:"supported_voices" json:"supported_voices"` // 支持的语音列表
+	Type      string `yaml:"type"             json:"type"`       // TTS类型
+	Voice     string `yaml:"voice"            json:"voice"`      // 语音名称
+	Format    string `yaml:"format"           json:"format"`     // 输出格式
+	OutputDir string `yaml:"output_dir"       json:"output_dir"` // 输出目录
+	AppID     string `yaml:"appid"            json:"appid"`      // 应用ID
+	Token     string `yaml:"token"            json:"token"`      // API密钥
+	Cluster   string `yaml:"cluster"          json:"cluster"`    // 集群信息
 }
 
 // LLMConfig LLM配置结构
@@ -169,9 +141,7 @@ type VLLMConfig struct {
 	Extra       map[string]interface{} `yaml:",inline"     json:"extra"`       // 额外配置
 }
 
-var (
-	Cfg *Config
-)
+var Cfg *Config
 
 func (cfg *Config) ToString() string {
 	data, _ := yaml.Marshal(cfg)
@@ -211,19 +181,10 @@ func LoadConfig(dbi ConfigDBInterface) (*Config, string, error) {
 
 	// 尝试从文件读取
 	path = ".config.yaml"
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		path = "config.yaml"
-	}
 
 	data, err := os.ReadFile(path)
 	if err != nil {
-		// 读取配置文件失败，使用默认配置
-		config.setDefaults()
-		data, _ = yaml.Marshal(config)
-	} else {
-		if err := yaml.Unmarshal(data, config); err != nil {
-			return nil, path, err
-		}
+		panic(err)
 	}
 
 	err = dbi.InitServerConfig(string(data))

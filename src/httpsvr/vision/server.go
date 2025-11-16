@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 	"xiaozhi-server-go/src/configs"
-	"xiaozhi-server-go/src/core/auth"
 	"xiaozhi-server-go/src/core/image"
 	"xiaozhi-server-go/src/core/providers"
 	"xiaozhi-server-go/src/core/providers/vlllm"
@@ -25,10 +24,9 @@ const (
 )
 
 type DefaultVisionService struct {
-	logger    *utils.Logger
-	config    *configs.Config
-	vlllmMap  map[string]*vlllm.Provider // 支持多个VLLLM provider
-	authToken *auth.AuthToken            // 认证工具
+	logger   *utils.Logger
+	config   *configs.Config
+	vlllmMap map[string]*vlllm.Provider // 支持多个VLLLM provider
 }
 
 // NewDefaultVisionService 构造函数
@@ -41,8 +39,6 @@ func NewDefaultVisionService(
 		config:   config,
 		vlllmMap: make(map[string]*vlllm.Provider),
 	}
-
-	service.authToken = auth.NewAuthToken(config.Server.Token)
 
 	// 初始化VLLLM providers
 	if err := service.initVLLMProviders(); err != nil {
@@ -161,20 +157,6 @@ func (s *DefaultVisionService) handlePost(c *gin.Context) {
 
 	deviceID := c.GetHeader("Device-Id")
 
-	// 验证认证
-	authResult, err := s.verifyAuth(c)
-	if err != nil {
-		s.respondError(c, http.StatusUnauthorized, err.Error())
-		s.logger.Warn("vision 认证失败 %v", err)
-		return
-	}
-
-	if !authResult.IsValid {
-		s.respondError(c, http.StatusUnauthorized, "无效的认证token或设备ID不匹配")
-		s.logger.Warn(fmt.Sprintf("Vision认证失败: %s", authResult.DeviceID))
-		return
-	}
-
 	// 解析multipart表单
 	req, err := s.parseMultipartRequest(c, deviceID)
 	if err != nil {
@@ -211,41 +193,6 @@ func (s *DefaultVisionService) handlePost(c *gin.Context) {
 
 	s.logger.Info("Vision分析结果%t: %s", response.Success, response.Result)
 	c.JSON(http.StatusOK, response)
-}
-
-// verifyAuth 验证认证token
-func (s *DefaultVisionService) verifyAuth(c *gin.Context) (*AuthVerifyResult, error) {
-	// 获取Authorization头
-	authHeader := c.GetHeader("Authorization")
-	if !strings.HasPrefix(authHeader, "Bearer ") {
-		return nil, fmt.Errorf("无效的认证token或token已过期")
-	}
-
-	token := authHeader[7:] // 移除"Bearer "前缀
-
-	// 打印认证token
-	s.logger.Debug(fmt.Sprintf("收到认证token: %s", token))
-
-	// 验证token（注意VerifyToken返回3个值）
-	isValid, deviceID, err := s.authToken.VerifyToken(token)
-	if err != nil || !isValid {
-		s.logger.Warn(fmt.Sprintf("认证token验证失败: %v", err))
-		return nil, fmt.Errorf("无效的认证token或token已过期")
-	}
-
-	// 检查设备ID匹配
-	requestDeviceID := c.GetHeader("Device-Id")
-	if requestDeviceID != deviceID {
-		s.logger.Warn(
-			fmt.Sprintf("设备ID与token不匹配: 请求设备ID=%s, token设备ID=%s", requestDeviceID, deviceID),
-		)
-		return nil, fmt.Errorf("设备ID与token不匹配")
-	}
-
-	return &AuthVerifyResult{
-		IsValid:  true,
-		DeviceID: deviceID,
-	}, nil
 }
 
 // parseMultipartRequest 解析multipart表单请求

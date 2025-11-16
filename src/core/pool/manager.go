@@ -36,9 +36,9 @@ func NewPoolManager(config *configs.Config, logger *utils.Logger) (*PoolManager,
 	}
 
 	poolConfig := PoolConfig{
-		MinSize:       config.PoolConfig.PoolMinSize,
-		MaxSize:       config.PoolConfig.PoolMaxSize,
-		RefillSize:    config.PoolConfig.PoolRefillSize,
+		MinSize:       5,
+		MaxSize:       20,
+		RefillSize:    3,
 		CheckInterval: 30 * time.Second,
 	}
 
@@ -112,10 +112,10 @@ func NewPoolManager(config *configs.Config, logger *utils.Logger) (*PoolManager,
 	}
 
 	poolConfig = PoolConfig{
-		MinSize:       config.McpPoolConfig.PoolMinSize,
-		MaxSize:       config.McpPoolConfig.PoolMaxSize,
-		RefillSize:    config.McpPoolConfig.PoolRefillSize,
-		CheckInterval: time.Duration(config.McpPoolConfig.PoolCheckInterval) * time.Second,
+		MinSize:       5,
+		MaxSize:       20,
+		RefillSize:    3,
+		CheckInterval: 30 * time.Second,
 	}
 
 	// 初始化MCP池（总是初始化，因为MCP是核心功能）
