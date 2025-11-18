@@ -13,9 +13,8 @@ import (
 	"strings"
 	"sync"
 	"time"
-
 	"xiaozhi-server-go/src/core/providers/asr"
-	"xiaozhi-server-go/src/core/utils"
+	"xiaozhi-server-go/src/logger"
 
 	"github.com/gorilla/websocket"
 )
@@ -60,7 +59,6 @@ type Provider struct {
 	wsURL         string
 	chunkDuration int
 	connectID     string
-	logger        *utils.Logger // 添加日志记录器
 
 	// 配置
 	modelName     string
@@ -81,7 +79,7 @@ type Provider struct {
 }
 
 // NewProvider 创建豆包ASR提供者实例
-func NewProvider(config *asr.Config, deleteFile bool, logger *utils.Logger) (*Provider, error) {
+func NewProvider(config *asr.Config, deleteFile bool) (*Provider, error) {
 	base := asr.NewBaseProvider(config, deleteFile)
 
 	// 从config.Data中获取配置
@@ -129,7 +127,6 @@ func NewProvider(config *asr.Config, deleteFile bool, logger *utils.Logger) (*Pr
 		wsURL:         url,
 		chunkDuration: 200, // 固定使用200ms分片
 		connectID:     connectID,
-		logger:        logger, // 使用简单的logger
 
 		// 默认配置
 		modelName:     "bigmodel",
@@ -269,7 +266,7 @@ func (p *Provider) parseResponse(data []byte) (map[string]any, error) {
 	// 跳过头部获取payload
 	if len(data) > 8 && data[8] == '{' {
 		payload = data[8:]
-		// p.logger.Info("[DEBUG] payload偏移修正为data[8:]，首字节=%d", payload[0])
+		// logger.Info("[DEBUG] payload偏移修正为data[8:]，首字节=%d", payload[0])
 	} else {
 		payload = data[headerSize*4:]
 	}
@@ -281,7 +278,7 @@ func (p *Provider) parseResponse(data []byte) (map[string]any, error) {
 	if messageTypeSpecificFlags&0x02 != 0 {
 		asr_result.IsLastPackage = true
 		result["is_last_package"] = true
-		//p.logger.Info("收到最后一个包, PayloadSequence=%d", asr_result.PayloadSequence)
+		// logger.Info("收到最后一个包, PayloadSequence=%d", asr_result.PayloadSequence)
 	}
 	if messageTypeSpecificFlags&0x04 != 0 {
 		asr_result.Event = int(binary.BigEndian.Uint32(payload[:4]))
@@ -294,11 +291,11 @@ func (p *Provider) parseResponse(data []byte) (map[string]any, error) {
 	case serverFullResponse:
 		// 如果 payload 直接是 JSON（如以 '{' 开头），直接解析，不做 sequence/payloadSize 处理
 		if len(payload) > 0 && payload[0] == '{' {
-			// p.logger.Info("[DEBUG] 进入JSON直解析分支，payload长度=%d", len(payload))
+			// logger.Info("[DEBUG] 进入JSON直解析分支，payload长度=%d", len(payload))
 			payloadMsg = payload
 			payloadSize = int32(len(payload))
 		} else {
-			// p.logger.Info("[DEBUG] 进入协议头解析分支，payload长度=%d", len(payload))
+			// logger.Info("[DEBUG] 进入协议头解析分支，payload长度=%d", len(payload))
 			// Doc: Header | Sequence | Payload size | Payload
 			if len(payload) < 8 {
 				return nil, fmt.Errorf("serverFullResponse payload too short for sequence and size: got %d bytes", len(payload))
@@ -363,7 +360,7 @@ func (p *Provider) parseResponse(data []byte) (map[string]any, error) {
 			if err := json.Unmarshal(payloadMsg, &jsonData); err != nil {
 				return nil, fmt.Errorf("解析JSON响应失败: %v", err)
 			}
-			p.logger.Debug("[DEBUG] parseResponse: JSON解析成功, 数据=%v", jsonData)
+			logger.Debug("[DEBUG] parseResponse: JSON解析成功, 数据=%v", jsonData)
 			result["payload_msg"] = jsonData
 		} else if serializationMethod != noSerialization {
 			result["payload_msg"] = string(payloadMsg)
@@ -401,7 +398,7 @@ func (p *Provider) AddAudioWithContext(ctx context.Context, data []byte) error {
 		} else {
 			p.sendDataCnt += 1
 			if p.sendDataCnt%20 == 0 {
-				p.logger.Debug("发送音频数据成功, 长度: %d 字节", len(data))
+				logger.Debug("发送音频数据成功, 长度: %d 字节", len(data))
 			}
 		}
 	}
@@ -410,7 +407,7 @@ func (p *Provider) AddAudioWithContext(ctx context.Context, data []byte) error {
 }
 
 func (p *Provider) StartStreaming(ctx context.Context) error {
-	p.logger.Info("[ASR] [流式识别] 开始")
+	logger.Info("[ASR] [流式识别] 开始")
 	p.ResetStartListenTime()
 	// 加锁保护连接初始化
 	p.connMutex.Lock()
@@ -506,7 +503,7 @@ func (p *Provider) StartStreaming(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("读取响应失败: %v", err)
 	} else {
-		p.logger.Debug("[DEBUG] 流式识别: 收到WebSocket消息长度=%d", len(response))
+		logger.Debug("[DEBUG] 流式识别: 收到WebSocket消息长度=%d", len(response))
 	}
 
 	initialResult, err := p.parseResponse(response)
@@ -523,7 +520,7 @@ func (p *Provider) StartStreaming(ctx context.Context) error {
 	}
 
 	p.isStreaming = true
-	p.logger.Debug("[DEBUG] 流式识别初始化成功, connectID=%s, reqID=%s", p.connectID, p.reqID)
+	logger.Debug("[DEBUG] 流式识别初始化成功, connectID=%s, reqID=%s", p.connectID, p.reqID)
 	// 开启一个协程来处理响应，读取最后的结果，读取完成后关闭协程
 	go func() {
 		p.ReadMessage()
@@ -532,10 +529,10 @@ func (p *Provider) StartStreaming(ctx context.Context) error {
 }
 
 func (p *Provider) ReadMessage() {
-	p.logger.Info("[ASR] [doubao] 流式识别协程已启动")
+	logger.Info("[ASR] [doubao] 流式识别协程已启动")
 	defer func() {
 		if r := recover(); r != nil {
-			p.logger.Error("流式识别协程发生错误: %v", r)
+			logger.Error("流式识别协程发生错误: %v", r)
 		}
 		p.connMutex.Lock()
 		p.isStreaming = false // 标记流式识别结束
@@ -543,7 +540,7 @@ func (p *Provider) ReadMessage() {
 			p.closeConnection()
 		}
 		p.connMutex.Unlock()
-		p.logger.Info("[ASR] [doubao] 流式识别协程已结束")
+		logger.Info("[ASR] [doubao] 流式识别协程已结束")
 	}()
 
 	for {
@@ -551,7 +548,7 @@ func (p *Provider) ReadMessage() {
 		p.connMutex.Lock()
 		if !p.isStreaming || p.conn == nil {
 			p.connMutex.Unlock()
-			p.logger.Info("流式识别已结束或连接已关闭，退出读取循环")
+			logger.Info("流式识别已结束或连接已关闭，退出读取循环")
 			return
 		}
 		conn := p.conn
@@ -572,7 +569,7 @@ func (p *Provider) ReadMessage() {
 		}
 
 		if code, hasCode := result["code"]; hasCode {
-			p.logger.Info("检测到code字段: 解析结果=%v", result)
+			logger.Info("检测到code字段: 解析结果=%v", result)
 			codeValue := code.(uint32)
 			if codeValue != 0 {
 				p.setErrorAndStop(fmt.Errorf("ASR服务端错误: Code=%d", codeValue))
@@ -590,7 +587,7 @@ func (p *Provider) ReadMessage() {
 					text = textData
 				}
 
-				p.logger.Debug("[DEBUG] 流式识别: 识别成功, 文本='%s'", text)
+				logger.Debug("[DEBUG] 流式识别: 识别成功, 文本='%s'", text)
 
 				p.connMutex.Lock()
 				p.result = text
@@ -599,14 +596,14 @@ func (p *Provider) ReadMessage() {
 				if isLast, hasLast := result["is_last_package"]; hasLast && isLast.(bool) {
 					// 如果是最后一个包，结束流式识别
 					isLastPackage = true
-					p.logger.Info("检测到最后一个ASR语音包, is_last_package=%v", isLast)
+					logger.Info("检测到最后一个ASR语音包, is_last_package=%v", isLast)
 				}
 
 				if listener := p.BaseProvider.GetListener(); listener != nil {
 					if text == "" && p.SilenceTime() > idleTimeout {
 						p.BaseProvider.SilenceCount += 1
 						text = "[SILENCE_TIMEOUT] 用户有一段时间没说话了，请礼貌提醒用户"
-						p.logger.Info("检测到静音超时, SilenceTime=%v/%v", p.SilenceTime(), idleTimeout)
+						logger.Info("检测到静音超时, SilenceTime=%v/%v", p.SilenceTime(), idleTimeout)
 						p.ResetStartListenTime()
 					} else if text != "" {
 						p.BaseProvider.SilenceCount = 0 // 重置静音计数
@@ -635,9 +632,9 @@ func (p *Provider) setErrorAndStop(err error) {
 	p.isStreaming = false
 	errMsg := err.Error()
 	if strings.Contains(errMsg, "use of closed network connection") {
-		p.logger.Debug("setErrorAndStop: %v, sendDataCnt=%d", err, p.sendDataCnt)
+		logger.Debug("setErrorAndStop: %v, sendDataCnt=%d", err, p.sendDataCnt)
 	} else {
-		p.logger.Error("setErrorAndStop: %v, sendDataCnt=%d", err, p.sendDataCnt)
+		logger.Error("setErrorAndStop: %v, sendDataCnt=%d", err, p.sendDataCnt)
 	}
 
 	if p.conn != nil {
@@ -649,7 +646,7 @@ func (p *Provider) closeConnection() {
 	defer func() {
 		if r := recover(); r != nil {
 			// 静默处理panic，避免程序崩溃
-			p.logger.Error("关闭连接时发生错误: %v", r)
+			logger.Error("关闭连接时发生错误: %v", r)
 		}
 	}()
 
@@ -666,7 +663,7 @@ func (p *Provider) SendLastAudio(data []byte) error {
 
 // sendAudioData 直接发送音频数据，替代之前的sendCurrentBuffer
 func (p *Provider) sendAudioData(data []byte, isLast bool) error {
-	p.logger.Debug(
+	logger.Debug(
 		"[DEBUG] sendAudioData: 数据长度=%d, isLast=%t, sendDataCnt=%d",
 		len(data),
 		isLast,
@@ -679,7 +676,7 @@ func (p *Provider) sendAudioData(data []byte, isLast bool) error {
 	defer func() {
 		if r := recover(); r != nil {
 			// 捕获WebSocket写入时的panic，避免程序崩溃
-			p.logger.Error("发送音频数据时发生panic: %v", r)
+			logger.Error("发送音频数据时发生panic: %v", r)
 		}
 	}()
 
@@ -731,7 +728,7 @@ func (p *Provider) Reset() error {
 	// 重置音频处理
 	p.InitAudioProcessing()
 
-	p.logger.Info("[ASR] [状态] 已重置")
+	logger.Info("[ASR] [状态] 已重置")
 
 	return nil
 }
@@ -754,7 +751,7 @@ func (p *Provider) Cleanup() error {
 	// 确保WebSocket连接关闭
 	p.closeConnection()
 
-	p.logger.Info("ASR资源已清理")
+	logger.Info("ASR资源已清理")
 
 	return nil
 }
@@ -765,7 +762,7 @@ func (p *Provider) CloseConnection() error {
 
 func init() {
 	// 注册豆包ASR提供者
-	asr.Register("doubao", func(config *asr.Config, deleteFile bool, logger *utils.Logger) (asr.Provider, error) {
-		return NewProvider(config, deleteFile, logger)
+	asr.Register("doubao", func(config *asr.Config, deleteFile bool) (asr.Provider, error) {
+		return NewProvider(config, deleteFile)
 	})
 }

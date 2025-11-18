@@ -10,9 +10,8 @@ import (
 	"strings"
 	"sync"
 	"time"
-
 	"xiaozhi-server-go/src/core/providers/asr"
-	"xiaozhi-server-go/src/core/utils"
+	"xiaozhi-server-go/src/logger"
 
 	"github.com/gorilla/websocket"
 )
@@ -27,7 +26,6 @@ type Provider struct {
 	language  string
 	outputDir string
 	wsURL     string
-	logger    *utils.Logger
 
 	// Streaming related fields
 	conn        *websocket.Conn
@@ -41,7 +39,7 @@ type Provider struct {
 }
 
 // NewProvider creates a new Deepgram ASR provider instance
-func NewProvider(config *asr.Config, deleteFile bool, logger *utils.Logger) (*Provider, error) {
+func NewProvider(config *asr.Config, deleteFile bool) (*Provider, error) {
 	base := asr.NewBaseProvider(config, deleteFile)
 
 	// Get configuration from config.Data
@@ -78,7 +76,6 @@ func NewProvider(config *asr.Config, deleteFile bool, logger *utils.Logger) (*Pr
 		wsURL:        "wss://api.deepgram.com/v1/listen",
 		// model:        model,
 		// punctuate: false, // Default to true for punctuation
-		logger: logger,
 	}
 
 	// Initialize audio processing
@@ -142,7 +139,7 @@ func (p *Provider) AddAudioWithContext(ctx context.Context, data []byte) error {
 		} else {
 			p.sendDataCnt += 1
 			if p.sendDataCnt%20 == 0 {
-				p.logger.Debug("Audio data sent successfully, length: %d bytes", len(data))
+				logger.Debug("Audio data sent successfully, length: %d bytes", len(data))
 			}
 		}
 	}
@@ -152,7 +149,7 @@ func (p *Provider) AddAudioWithContext(ctx context.Context, data []byte) error {
 
 // StartStreaming starts the streaming transcription
 func (p *Provider) StartStreaming(ctx context.Context) error {
-	p.logger.Info("----Starting streaming transcription----")
+	logger.Info("----Starting streaming transcription----")
 	p.ResetStartListenTime()
 
 	p.connMutex.Lock()
@@ -195,7 +192,7 @@ func (p *Provider) StartStreaming(ctx context.Context) error {
 
 		if i < maxRetries {
 			backoffTime := time.Duration(500*(i+1)) * time.Millisecond
-			p.logger.Debug("WebSocket connection failed (attempt %d/%d): %v, retrying in %v",
+			logger.Debug("WebSocket connection failed (attempt %d/%d): %v, retrying in %v",
 				i+1, maxRetries+1, err, backoffTime)
 			time.Sleep(backoffTime)
 		}
@@ -213,7 +210,7 @@ func (p *Provider) StartStreaming(ctx context.Context) error {
 	p.isStreaming = true
 	p.reqID = fmt.Sprintf("%d", time.Now().UnixNano())
 
-	p.logger.Debug("[DEBUG] Streaming initialized successfully, reqID=%s", p.reqID)
+	logger.Debug("[DEBUG] Streaming initialized successfully, reqID=%s", p.reqID)
 
 	go p.ReadMessage()
 	return nil
@@ -221,10 +218,10 @@ func (p *Provider) StartStreaming(ctx context.Context) error {
 
 // ReadMessage reads messages from the WebSocket connection
 func (p *Provider) ReadMessage() {
-	p.logger.Info("Deepgram streaming thread started")
+	logger.Info("Deepgram streaming thread started")
 	defer func() {
 		if r := recover(); r != nil {
-			p.logger.Error("Streaming thread error: %v", r)
+			logger.Error("Streaming thread error: %v", r)
 		}
 		p.connMutex.Lock()
 		p.isStreaming = false
@@ -232,14 +229,14 @@ func (p *Provider) ReadMessage() {
 			p.closeConnection()
 		}
 		p.connMutex.Unlock()
-		p.logger.Info("Deepgram streaming thread ended")
+		logger.Info("Deepgram streaming thread ended")
 	}()
 
 	for {
 		p.connMutex.Lock()
 		if !p.isStreaming || p.conn == nil {
 			p.connMutex.Unlock()
-			p.logger.Info("Streaming ended or connection closed, exiting read loop")
+			logger.Info("Streaming ended or connection closed, exiting read loop")
 			return
 		}
 		conn := p.conn
@@ -318,16 +315,16 @@ func (p *Provider) parseResponse(data []byte) (map[string]any, error) {
 		return nil, fmt.Errorf("failed to parse JSON response: %v", err)
 	}
 
-	p.logger.Debug("[DEBUG] parseResponse: JSON parsed successfully, data=%v", response)
+	logger.Debug("[DEBUG] parseResponse: JSON parsed successfully, data=%v", response)
 
 	// Log additional debug info for error responses
 	if responseType, ok := response["type"].(string); ok && responseType == "Error" {
-		p.logger.Debug("[DEBUG] Received error response: %v", response)
+		logger.Debug("[DEBUG] Received error response: %v", response)
 		if desc, ok := response["description"].(string); ok {
-			p.logger.Debug("[DEBUG] Error description: %s", desc)
+			logger.Debug("[DEBUG] Error description: %s", desc)
 		}
 		if msg, ok := response["message"].(string); ok {
-			p.logger.Debug("[DEBUG] Error message: %s", msg)
+			logger.Debug("[DEBUG] Error message: %s", msg)
 		}
 	}
 
@@ -341,9 +338,9 @@ func (p *Provider) setErrorAndStop(err error) {
 	p.isStreaming = false
 	errMsg := err.Error()
 	if strings.Contains(errMsg, "use of closed network connection") {
-		p.logger.Debug("setErrorAndStop: %v, sendDataCnt=%d", err, p.sendDataCnt)
+		logger.Debug("setErrorAndStop: %v, sendDataCnt=%d", err, p.sendDataCnt)
 	} else {
-		p.logger.Error("setErrorAndStop: %v, sendDataCnt=%d", err, p.sendDataCnt)
+		logger.Error("setErrorAndStop: %v, sendDataCnt=%d", err, p.sendDataCnt)
 	}
 
 	if p.conn != nil {
@@ -354,7 +351,7 @@ func (p *Provider) setErrorAndStop(err error) {
 func (p *Provider) closeConnection() {
 	defer func() {
 		if r := recover(); r != nil {
-			p.logger.Error("Error closing connection: %v", r)
+			logger.Error("Error closing connection: %v", r)
 		}
 	}()
 
@@ -366,13 +363,13 @@ func (p *Provider) closeConnection() {
 
 // sendAudioData sends audio data to Deepgram
 func (p *Provider) sendAudioData(data []byte, isLast bool) error {
-	p.logger.Debug("[DEBUG] sendAudioData: data length=%d, isLast=%t, sendDataCnt=%d", len(data), isLast, p.sendDataCnt)
+	logger.Debug("[DEBUG] sendAudioData: data length=%d, isLast=%t, sendDataCnt=%d", len(data), isLast, p.sendDataCnt)
 	if len(data) == 0 && !isLast {
 		return nil
 	}
 	defer func() {
 		if r := recover(); r != nil {
-			p.logger.Error("Panic while sending audio data: %v", r)
+			logger.Error("Panic while sending audio data: %v", r)
 		}
 	}()
 
@@ -401,7 +398,7 @@ func (p *Provider) Reset() error {
 
 	p.InitAudioProcessing()
 
-	p.logger.Info("ASR state reset")
+	logger.Info("ASR state reset")
 
 	return nil
 }
@@ -421,14 +418,14 @@ func (p *Provider) Cleanup() error {
 
 	p.closeConnection()
 
-	p.logger.Info("ASR resources cleaned up")
+	logger.Info("ASR resources cleaned up")
 
 	return nil
 }
 
 func init() {
 	// Register Deepgram ASR provider
-	asr.Register("deepgram", func(config *asr.Config, deleteFile bool, logger *utils.Logger) (asr.Provider, error) {
-		return NewProvider(config, deleteFile, logger)
+	asr.Register("deepgram", func(config *asr.Config, deleteFile bool) (asr.Provider, error) {
+		return NewProvider(config, deleteFile)
 	})
 }

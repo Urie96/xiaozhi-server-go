@@ -14,9 +14,8 @@ type DialogueManager struct {
 }
 
 // NewDialogueManager 创建对话管理器实例
-func NewDialogueManager(logger *utils.Logger) *DialogueManager {
+func NewDialogueManager() *DialogueManager {
 	return &DialogueManager{
-		logger:   logger,
 		dialogue: make([]Message, 0),
 	}
 }

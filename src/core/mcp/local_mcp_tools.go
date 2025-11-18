@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 	"xiaozhi-server-go/src/core/types"
+	"xiaozhi-server-go/src/logger"
 )
 
 func (c *LocalClient) AddToolExit() error {
@@ -22,7 +23,7 @@ func (c *LocalClient) AddToolExit() error {
 		"当用户想结束对话或需要退出系统时调用",
 		InputSchema,
 		func(ctx context.Context, args map[string]any) (any, error) {
-			c.logger.Info("用户请求退出对话，告别语：%s", args["say_goodbye"])
+			logger.Info("用户请求退出对话，告别语：%s", args["say_goodbye"])
 			res := types.ActionResponse{
 				Action: types.ActionTypeCallHandler, // 动作类型
 				Result: types.ActionResponseCall{
@@ -66,7 +67,7 @@ func (c *LocalClient) AddToolChangeRole() error {
 	prompts := map[string]string{}
 	roleNames := ""
 	if roles == nil {
-		c.logger.Warn(
+		logger.Warn(
 			"AddToolChangeRole: roles settings is nil or empty, Skipping tool registration",
 		)
 		return nil
@@ -163,7 +164,7 @@ func (c *LocalClient) AddToolSwitchAgent() error {
 			// 验证至少提供了一个参数
 			if _, hasID := args["agent_id"]; !hasID {
 				if _, hasName := args["agent_name"]; !hasName {
-					c.logger.Warn("switch_agent: 必须提供 agent_id 或 agent_name 其中之一")
+					logger.Warn("switch_agent: 必须提供 agent_id 或 agent_name 其中之一")
 					return types.ActionResponse{
 						Action: types.ActionTypeReqLLM,
 						Result: "切换智能体需要提供智能体ID或名称",

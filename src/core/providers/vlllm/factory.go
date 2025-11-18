@@ -2,17 +2,14 @@ package vlllm
 
 import (
 	"fmt"
-
 	"xiaozhi-server-go/src/configs"
-	"xiaozhi-server-go/src/core/utils"
+	"xiaozhi-server-go/src/logger"
 )
 
 // Factory VLLLM工厂函数类型
-type Factory func(config *Config, logger *utils.Logger) (*Provider, error)
+type Factory func(config *Config) (*Provider, error)
 
-var (
-	factories = make(map[string]Factory)
-)
+var factories = make(map[string]Factory)
 
 // Register 注册VLLLM提供者工厂
 func Register(name string, factory Factory) {
@@ -20,7 +17,7 @@ func Register(name string, factory Factory) {
 }
 
 // Create 创建VLLLM提供者实例
-func Create(name string, vlllmConfig *configs.VLLMConfig, logger *utils.Logger) (*Provider, error) {
+func Create(name string, vlllmConfig *configs.VLLMConfig) (*Provider, error) {
 	factory, ok := factories[name]
 	if !ok {
 		return nil, fmt.Errorf("未知的VLLLM提供者: %s", name)
@@ -40,7 +37,7 @@ func Create(name string, vlllmConfig *configs.VLLMConfig, logger *utils.Logger) 
 	}
 
 	// 创建提供者实例
-	provider, err := factory(config, logger)
+	provider, err := factory(config)
 	if err != nil {
 		return nil, fmt.Errorf("创建VLLLM提供者失败: %v", err)
 	}

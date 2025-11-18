@@ -12,6 +12,7 @@ import (
 	"xiaozhi-server-go/src/configs"
 	"xiaozhi-server-go/src/core/types"
 	"xiaozhi-server-go/src/core/utils"
+	"xiaozhi-server-go/src/logger"
 
 	go_openai "github.com/sashabaranov/go-openai"
 )
@@ -23,7 +24,6 @@ type Conn interface {
 
 // Manager MCP服务管理器
 type Manager struct {
-	logger                *utils.Logger
 	conn                  Conn
 	funcHandler           types.FunctionRegistryInterface
 	configPath            string
@@ -40,8 +40,8 @@ type Manager struct {
 }
 
 // NewManagerForPool 创建用于资源池的MCP管理器
-func NewManagerForPool(lg *utils.Logger, cfg *configs.Config) *Manager {
-	lg.Info("创建MCP Manager用于资源池")
+func NewManagerForPool(cfg *configs.Config) *Manager {
+	logger.Info("创建MCP Manager用于资源池")
 	projectDir := utils.GetProjectDir()
 	configPath := filepath.Join(projectDir, ".mcp_server_settings.json")
 
@@ -50,7 +50,6 @@ func NewManagerForPool(lg *utils.Logger, cfg *configs.Config) *Manager {
 	}
 
 	mgr := &Manager{
-		logger:                lg,
 		funcHandler:           nil, // 将在绑定连接时设置
 		conn:                  nil, // 将在绑定连接时设置
 		configPath:            configPath,
@@ -62,9 +61,9 @@ func NewManagerForPool(lg *utils.Logger, cfg *configs.Config) *Manager {
 	// 预先初始化非连接相关的MCP服务器
 	if err := mgr.preInitializeServers(); err != nil {
 		if err.Error() == "no valid MCP server configuration found" {
-			lg.Warn("没有找到有效的MCP服务器配置，跳过预初始化，如需使用外部MCP功能，请提供配置文件")
+			logger.Warn("没有找到有效的MCP服务器配置，跳过预初始化，如需使用外部MCP功能，请提供配置文件")
 		} else {
-			lg.Error("预初始化MCP服务器失败: %v", err)
+			logger.Error("预初始化MCP服务器失败: %v", err)
 		}
 	}
 
@@ -73,14 +72,14 @@ func NewManagerForPool(lg *utils.Logger, cfg *configs.Config) *Manager {
 
 // preInitializeServers 预初始化不依赖连接的MCP服务器
 func (m *Manager) preInitializeServers() error {
-	m.localClient, _ = NewLocalClient(m.logger, m.systemCfg)
+	m.localClient, _ = NewLocalClient(m.systemCfg)
 	m.localClient.Start(context.Background())
 	m.clients["local"] = m.localClient
 
 	config := m.LoadConfig()
 	if config == nil {
 		// 没有MCP配置文件，跳过外部服务器初始化
-		m.logger.Info("未找到MCP服务器配置文件，跳过外部MCP服务器初始化")
+		logger.Info("未找到MCP服务器配置文件，跳过外部MCP服务器初始化")
 		m.isInitialized = true
 		return nil
 	}
@@ -90,30 +89,30 @@ func (m *Manager) preInitializeServers() error {
 		srvConfigMap, ok := srvConfig.(map[string]any)
 
 		if !ok {
-			m.logger.Warn("Invalid configuration format for server %s", name)
+			logger.Warn("Invalid configuration format for server %s", name)
 			continue
 		}
 
 		// 创建并启动外部MCP客户端
 		clientConfig, err := convertConfig(srvConfigMap)
 		if err != nil {
-			m.logger.Error("Failed to convert config for server %s: %v", name, err)
+			logger.Error("Failed to convert config for server %s: %v", name, err)
 			continue
 		}
 
 		if !clientConfig.Enabled {
-			m.logger.Debug("MCP client %s is disabled", name)
+			logger.Debug("MCP client %s is disabled", name)
 			continue
 		}
 
-		client, err := NewClient(clientConfig, m.logger)
+		client, err := NewClient(clientConfig)
 		if err != nil {
-			m.logger.Error("Failed to create MCP client for server %s: %v", name, err)
+			logger.Error("Failed to create MCP client for server %s: %v", name, err)
 			continue
 		}
 
 		if err := client.Start(context.Background()); err != nil {
-			m.logger.Error("Failed to start MCP client %s: %v", name, err)
+			logger.Error("Failed to start MCP client %s: %v", name, err)
 			continue
 		}
 		m.clients[name] = client
@@ -148,15 +147,15 @@ func (m *Manager) BindConnection(
 	visionURL := paramsMap["vision_url"].(string)
 	deviceID := paramsMap["device_id"].(string)
 	clientID := paramsMap["client_id"].(string)
-	m.logger.Debug("绑定连接到MCP Manager, sessionID: %s, visionURL: %s", sessionID, visionURL)
+	logger.Debug("绑定连接到MCP Manager, sessionID: %s, visionURL: %s", sessionID, visionURL)
 	if !m.isInitialized {
-		m.logger.Info("BindConnection, MCP Manager未初始化，预初始化MCP服务器")
+		logger.Info("BindConnection, MCP Manager未初始化，预初始化MCP服务器")
 		m.preInitializeServers()
 	}
 
 	// 优化：检查XiaoZhiMCPClient是否需要重新启动
 	if m.XiaoZhiMCPClient == nil {
-		m.XiaoZhiMCPClient = NewXiaoZhiMCPClient(m.logger, conn, sessionID)
+		m.XiaoZhiMCPClient = NewXiaoZhiMCPClient(conn, sessionID)
 		m.XiaoZhiMCPClient.SetVisionURL(visionURL)
 		m.XiaoZhiMCPClient.SetID(deviceID, clientID)
 
@@ -168,7 +167,7 @@ func (m *Manager) BindConnection(
 		m.XiaoZhiMCPClient.SetConnection(conn)
 		m.XiaoZhiMCPClient.SetID(deviceID, clientID)
 		if !m.XiaoZhiMCPClient.IsReady() {
-			m.logger.Info("XiaoZhi MCP客户端未就绪，重新启动")
+			logger.Info("XiaoZhi MCP客户端未就绪，重新启动")
 			if err := m.XiaoZhiMCPClient.Start(context.Background()); err != nil {
 				return fmt.Errorf("重启XiaoZhi MCP客户端失败: %v", err)
 			}
@@ -206,7 +205,7 @@ func (m *Manager) registerAllToolsIfNeeded() {
 				m.funcHandler.RegisterFunction(toolName, tool)
 				if !m.isToolRegistered(toolName) {
 					m.tools = append(m.tools, toolName)
-					m.logger.Info("Registered external MCP tool: [%s] %s", toolName, tool.Function.Description)
+					logger.Info("Registered external MCP tool: [%s] %s", toolName, tool.Function.Description)
 				}
 			}
 		}
@@ -264,7 +263,7 @@ func (m *Manager) LoadConfig() map[string]any {
 
 	data, err := os.ReadFile(m.configPath)
 	if err != nil {
-		m.logger.Error("%s", fmt.Sprintf("Error loading MCP config from %s: %v", m.configPath, err))
+		logger.Error("%s", fmt.Sprintf("Error loading MCP config from %s: %v", m.configPath, err))
 		return nil
 	}
 
@@ -273,7 +272,7 @@ func (m *Manager) LoadConfig() map[string]any {
 	}
 
 	if err := json.Unmarshal(data, &config); err != nil {
-		m.logger.Error("%s", fmt.Sprintf("Error parsing MCP config: %v", err))
+		logger.Error("%s", fmt.Sprintf("Error parsing MCP config: %v", err))
 		return nil
 	}
 
@@ -287,7 +286,7 @@ func (m *Manager) HandleXiaoZhiMCPMessage(msgMap map[string]any) error {
 	}
 	err := m.XiaoZhiMCPClient.HandleMCPMessage(msgMap)
 	if err != nil {
-		m.logger.Error(fmt.Sprintf("处理小智MCP消息失败: %v", err))
+		logger.Error(fmt.Sprintf("处理小智MCP消息失败: %v", err))
 		return err
 	}
 	if m.XiaoZhiMCPClient.IsReady() && !m.bRegisteredXiaoZhiMCP {
@@ -378,10 +377,10 @@ func (m *Manager) registerTools(tools []go_openai.Tool) {
 		m.tools = append(m.tools, toolName)
 		if m.funcHandler != nil {
 			if err := m.funcHandler.RegisterFunction(toolName, tool); err != nil {
-				m.logger.Error(fmt.Sprintf("注册工具失败: %s, 错误: %v", toolName, err))
+				logger.Error(fmt.Sprintf("注册工具失败: %s, 错误: %v", toolName, err))
 				continue
 			}
-			// m.logger.Info("Registered tool: [%s] %s", toolName, tool.Function.Description)
+			// logger.Info("Registered tool: [%s] %s", toolName, tool.Function.Description)
 		}
 	}
 }
@@ -406,7 +405,7 @@ func (m *Manager) ExecuteTool(
 	toolName string,
 	arguments map[string]any,
 ) (any, error) {
-	m.logger.Info(fmt.Sprintf("Executing tool %s with arguments: %v", toolName, arguments))
+	logger.Info(fmt.Sprintf("Executing tool %s with arguments: %v", toolName, arguments))
 
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -448,9 +447,9 @@ func (m *Manager) CleanupAll(ctx context.Context) {
 
 			select {
 			case <-done:
-				m.logger.Info(fmt.Sprintf("MCP client closed: %s", name))
+				logger.Info(fmt.Sprintf("MCP client closed: %s", name))
 			case <-ctx.Done():
-				m.logger.Error(fmt.Sprintf("Timeout closing MCP client %s", name))
+				logger.Error(fmt.Sprintf("Timeout closing MCP client %s", name))
 			}
 		}()
 

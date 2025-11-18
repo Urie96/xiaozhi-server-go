@@ -23,6 +23,7 @@ import (
 	"xiaozhi-server-go/src/core/providers/vlllm"
 	"xiaozhi-server-go/src/core/types"
 	"xiaozhi-server-go/src/core/utils"
+	"xiaozhi-server-go/src/logger"
 
 	"github.com/google/uuid"
 	"github.com/sashabaranov/go-openai"
@@ -49,13 +50,11 @@ type llmConfigGetter interface {
 // ConnectionHandler 连接处理器结构
 type ConnectionHandler struct {
 	// 确保实现 AsrEventListener 接口
-	_                providers.AsrEventListener
-	config           *configs.Config
-	logger           *utils.Logger
-	conn             Connection
-	closeOnce        sync.Once
-	safeCallbackFunc func(func(*ConnectionHandler)) func()
-	providers        struct {
+	_         providers.AsrEventListener
+	config    *configs.Config
+	conn      Connection
+	closeOnce sync.Once
+	providers struct {
 		asr   providers.ASRProvider
 		llm   providers.LLMProvider
 		tts   providers.TTSProvider
@@ -66,11 +65,10 @@ type ConnectionHandler struct {
 	voiceName       string // 语音名称
 
 	// 会话相关
-	sessionID     string            // 设备与服务端会话ID
-	deviceID      string            // 设备ID
-	clientId      string            // 客户端ID
-	headers       map[string]string // HTTP头部信息
-	transportType string            // 传输类型
+	sessionID string            // 设备与服务端会话ID
+	deviceID  string            // 设备ID
+	clientId  string            // 客户端ID
+	headers   map[string]string // HTTP头部信息
 
 	// 客户端音频相关
 	clientAudioFormat        string
@@ -135,13 +133,11 @@ type ConnectionHandler struct {
 func NewConnectionHandler(
 	config *configs.Config,
 	providerSet *pool.ProviderSet,
-	logger *utils.Logger,
 	req *http.Request,
 	ctx context.Context,
 ) *ConnectionHandler {
 	handler := &ConnectionHandler{
 		config:           config,
-		logger:           logger,
 		clientListenMode: "auto",
 		stopChan:         make(chan struct{}),
 		clientAudioQueue: make(chan []byte, 100),
@@ -185,9 +181,6 @@ func NewConnectionHandler(
 		if key == "Session-Id" {
 			handler.sessionID = values[0] // 会话ID
 		}
-		if key == "Transport-Type" {
-			handler.transportType = values[0] // 传输类型
-		}
 		logger.Debug("[HTTP] [头部 %s] %s", key, values[0])
 	}
 
@@ -210,7 +203,7 @@ func NewConnectionHandler(
 	handler.quickReplyCache = utils.NewQuickReplyCache(handler.ttsProviderName, handler.voiceName)
 
 	// 初始化对话管理器
-	handler.dialogueManager = chat.NewDialogueManager(handler.logger)
+	handler.dialogueManager = chat.NewDialogueManager()
 	handler.dialogueManager.SetSystemMessage(handler.config.DefaultPrompt)
 	handler.functionRegister = function.NewFunctionRegistry()
 	handler.initMCPResultHandlers()
@@ -218,32 +211,22 @@ func NewConnectionHandler(
 	return handler
 }
 
-func (h *ConnectionHandler) SetTaskCallback(callback func(func(*ConnectionHandler)) func()) {
-	h.safeCallbackFunc = callback
-}
-
 func (h *ConnectionHandler) LogInfo(msg string) {
-	if h.logger != nil {
-		h.logger.Info(msg, map[string]any{
-			"device": h.deviceID,
-		})
-	}
+	logger.Info(msg, map[string]any{
+		"device": h.deviceID,
+	})
 }
 
 func (h *ConnectionHandler) LogDebug(msg string) {
-	if h.logger != nil {
-		h.logger.Debug(msg, map[string]any{
-			"device": h.deviceID,
-		})
-	}
+	logger.Debug(msg, map[string]any{
+		"device": h.deviceID,
+	})
 }
 
 func (h *ConnectionHandler) LogError(msg string) {
-	if h.logger != nil {
-		h.logger.Error(msg, map[string]any{
-			"device": h.deviceID,
-		})
-	}
+	logger.Error(msg, map[string]any{
+		"device": h.deviceID,
+	})
 }
 
 // Handle 处理WebSocket连接
@@ -393,7 +376,7 @@ func (h *ConnectionHandler) QuitIntent(text string) bool {
 	cleanText := utils.RemoveAllPunctuation(text) // 移除标点符号，确保匹配准确
 	// 检查是否包含退出命令
 	for _, cmd := range exitCommands {
-		h.logger.Debug(fmt.Sprintf("检查退出命令: %s,%s", cmd, cleanText))
+		logger.Debug(fmt.Sprintf("检查退出命令: %s,%s", cmd, cleanText))
 		// 判断相等
 		if cleanText == cmd {
 			h.LogInfo("[客户端] [退出意图] 收到，准备结束对话")
@@ -424,7 +407,7 @@ func (h *ConnectionHandler) quickReplyWakeUpWords(text string) bool {
 // handleChatMessage 处理聊天消息
 func (h *ConnectionHandler) handleChatMessage(ctx context.Context, text string) error {
 	if text == "" {
-		h.logger.Warn("收到空聊天消息，忽略")
+		logger.Warn("收到空聊天消息，忽略")
 		h.clientAbortChat()
 		return fmt.Errorf("聊天消息为空")
 	}
@@ -485,7 +468,7 @@ func (h *ConnectionHandler) genResponseByLLM(ctx context.Context, messages []pro
 	}()
 
 	llmStartTime := time.Now()
-	// h.logger.Info("开始生成LLM回复, round:%d ", round)
+	// logger.Info("开始生成LLM回复, round:%d ", round)
 	for _, msg := range messages {
 		_ = msg
 		// msg.Print()
@@ -562,7 +545,7 @@ func (h *ConnectionHandler) genResponseByLLM(ctx context.Context, messages []pro
 			// 处理分段
 			fullText := utils.JoinStrings(responseMessage)
 			if len(fullText) <= processedChars {
-				h.logger.Warn(fmt.Sprintf("文本处理异常: fullText长度=%d, processedChars=%d", len(fullText), processedChars))
+				logger.Warn(fmt.Sprintf("文本处理异常: fullText长度=%d, processedChars=%d", len(fullText), processedChars))
 				continue
 			}
 			currentText := fullText[processedChars:]
@@ -659,7 +642,7 @@ func (h *ConnectionHandler) genResponseByLLM(ctx context.Context, messages []pro
 			h.SpeakAndPlay(remainingText, textIndex, round)
 		}
 	} else {
-		h.logger.Debug("无剩余文本需要处理: fullResponse长度=%d, processedChars=%d", len(fullResponse), processedChars)
+		logger.Debug("无剩余文本需要处理: fullResponse长度=%d, processedChars=%d", len(fullResponse), processedChars)
 	}
 
 	// 分析回复并发送相应的情绪
@@ -743,7 +726,7 @@ func (h *ConnectionHandler) handleFunctionResult(result types.ActionResponse, fu
 
 func (h *ConnectionHandler) SystemSpeak(text string) error {
 	if text == "" {
-		h.logger.Warn("SystemSpeak 收到空文本，无法合成语音")
+		logger.Warn("SystemSpeak 收到空文本，无法合成语音")
 		return errors.New("收到空文本，无法合成语音")
 	}
 	texts := utils.SplitByPunctuation(text)
@@ -796,7 +779,7 @@ func (h *ConnectionHandler) deleteAudioFileIfNeeded(filepath string, reason stri
 	if err := os.Remove(filepath); err != nil {
 		h.LogError(fmt.Sprintf(reason+" 删除音频文件失败: %v", err))
 	} else {
-		h.logger.Debug(fmt.Sprintf(reason+" 已删除音频文件: %s", filepath))
+		logger.Debug(fmt.Sprintf(reason+" 已删除音频文件: %s", filepath))
 	}
 }
 
@@ -827,7 +810,7 @@ func (h *ConnectionHandler) processTTSTask(text string, textIndex int, round int
 	text = utils.RemoveParentheses(text)
 
 	if text == "" {
-		h.logger.Warn(fmt.Sprintf("[TTS] [警告] 收到空文本 index=%d", textIndex))
+		logger.Warn(fmt.Sprintf("[TTS] [警告] 收到空文本 index=%d", textIndex))
 		return
 	}
 
@@ -837,7 +820,7 @@ func (h *ConnectionHandler) processTTSTask(text string, textIndex int, round int
 		h.LogError(fmt.Sprintf("TTS转换失败:text(%s) %v", text, err))
 		return
 	} else {
-		h.logger.Debug(fmt.Sprintf("TTS转换成功: text(%s), index(%d) %s", text, textIndex, filepath))
+		logger.Debug(fmt.Sprintf("TTS转换成功: text(%s), index(%d) %s", text, textIndex, filepath))
 		// 如果是快速回复词，保存到缓存
 		if utils.IsQuickReplyHit(text, h.config.QuickReplyWords) {
 			if err := h.quickReplyCache.SaveCachedAudio(text, filepath); err != nil {
@@ -857,7 +840,7 @@ func (h *ConnectionHandler) processTTSTask(text string, textIndex int, round int
 	if textIndex == 1 {
 		now := time.Now()
 		ttsSpentTime := now.Sub(ttsStartTime)
-		h.logger.Debug(fmt.Sprintf("TTS转换耗时: %s, 文本: %s, 索引: %d", ttsSpentTime, text, textIndex))
+		logger.Debug(fmt.Sprintf("TTS转换耗时: %s, 文本: %s, 索引: %d", ttsSpentTime, text, textIndex))
 	}
 }
 
@@ -876,7 +859,7 @@ func (h *ConnectionHandler) SpeakAndPlay(text string, textIndex int, round int) 
 	text = utils.RemoveAllEmoji(text)
 	text = utils.RemoveMarkdownSyntax(text) // 移除Markdown语法
 	if text == "" {
-		h.logger.Warn("SpeakAndPlay 收到空文本，无法合成语音, %d, text:%s.", textIndex, originText)
+		logger.Warn("SpeakAndPlay 收到空文本，无法合成语音, %d, text:%s.", textIndex, originText)
 		return errors.New("收到空文本，无法合成语音")
 	}
 
@@ -887,7 +870,7 @@ func (h *ConnectionHandler) SpeakAndPlay(text string, textIndex int, round int) 
 	}
 
 	if len(text) > 255 {
-		h.logger.Warn("文本过长，超过255字符限制，截断合成语音: %s", text)
+		logger.Warn("文本过长，超过255字符限制，截断合成语音: %s", text)
 		text = text[:255] // 截断文本
 	}
 
@@ -963,7 +946,7 @@ func (h *ConnectionHandler) Close() {
 
 // genResponseByVLLM 使用VLLLM处理包含图片的消息
 func (h *ConnectionHandler) genResponseByVLLM(ctx context.Context, messages []providers.Message, imageData image.ImageData, text string, round int) error {
-	h.logger.Info("开始生成VLLLM回复 %v", map[string]any{
+	logger.Info("开始生成VLLLM回复 %v", map[string]any{
 		"text":          text,
 		"has_url":       imageData.URL != "",
 		"has_data":      imageData.Data != "",

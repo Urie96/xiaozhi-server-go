@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 	"time"
-	"xiaozhi-server-go/src/core/utils"
+	"xiaozhi-server-go/src/logger"
 )
 
 /*
@@ -32,7 +32,6 @@ type ResourcePool struct {
 	maxSize     int
 	currentSize int
 	mutex       sync.RWMutex
-	logger      *utils.Logger
 	ctx         context.Context
 	cancel      context.CancelFunc
 }
@@ -50,7 +49,6 @@ func NewResourcePool(
 	poolName string,
 	factory ResourceFactory,
 	config PoolConfig,
-	logger *utils.Logger,
 ) (*ResourcePool, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -60,7 +58,6 @@ func NewResourcePool(
 		pool:     make(chan any, config.MaxSize),
 		minSize:  config.MinSize,
 		maxSize:  config.MaxSize,
-		logger:   logger,
 		ctx:      ctx,
 		cancel:   cancel,
 	}
@@ -87,7 +84,7 @@ func (p *ResourcePool) Get() (any, error) {
 		return resource, nil
 	default:
 		// 池中没有资源时，检查是否可以创建新资源
-		p.logger.Info("%s 资源池中没有可用资源，尝试创建新资源", p.poolName)
+		logger.Info("%s 资源池中没有可用资源，尝试创建新资源", p.poolName)
 		p.mutex.Lock()
 		if p.currentSize >= p.maxSize {
 			p.mutex.Unlock()
@@ -136,7 +133,7 @@ func (p *ResourcePool) refillPool(refillSize int) {
 	if currentSize < refillSize {
 		needCreate := refillSize - currentSize
 		for i := 0; i < needCreate && currentSize < p.maxSize; i++ {
-			p.logger.Info(
+			logger.Info(
 				"%s 资源池当前资源数量 %d，创建新资源补充(%d/%d)",
 				p.poolName,
 				currentSize,
@@ -145,7 +142,7 @@ func (p *ResourcePool) refillPool(refillSize int) {
 			)
 			resource, err := p.factory.Create()
 			if err != nil {
-				p.logger.Error("%s 创建资源失败: %v", p.poolName, err)
+				logger.Error("%s 创建资源失败: %v", p.poolName, err)
 				continue
 			}
 
@@ -156,7 +153,7 @@ func (p *ResourcePool) refillPool(refillSize int) {
 				p.mutex.Unlock()
 			default:
 				// 池满了，销毁资源
-				p.logger.Warn("%s 资源池已满，销毁新创建的资源", p.poolName)
+				logger.Warn("%s 资源池已满，销毁新创建的资源", p.poolName)
 				p.factory.Destroy(resource)
 			}
 		}
@@ -170,7 +167,7 @@ func (p *ResourcePool) Close() {
 
 	// 销毁剩余资源
 	for resource := range p.pool {
-		p.logger.Info("[Close] %s 资源池关闭，销毁资源", p.poolName)
+		logger.Info("[Close] %s 资源池关闭，销毁资源", p.poolName)
 		p.factory.Destroy(resource)
 	}
 }
@@ -184,7 +181,7 @@ func (p *ResourcePool) Put(resource any) error {
 	// 检查池是否已关闭
 	select {
 	case <-p.ctx.Done():
-		p.logger.Warn("[Put] %s 资源池已关闭，销毁归还的资源", p.poolName)
+		logger.Warn("[Put] %s 资源池已关闭，销毁归还的资源", p.poolName)
 		return p.factory.Destroy(resource)
 	default:
 	}
@@ -201,11 +198,11 @@ func (p *ResourcePool) Put(resource any) error {
 		return nil
 	case <-timeout.C:
 		// 超时后销毁资源而不是阻塞
-		p.logger.Warn("[Put] %s 资源归还超时，销毁资源", p.poolName)
+		logger.Warn("[Put] %s 资源归还超时，销毁资源", p.poolName)
 		return p.factory.Destroy(resource)
 	default:
 		// 池已满，销毁多余的资源
-		p.logger.Info("[Put] %s 资源池已满，销毁归还的资源", p.poolName)
+		logger.Info("[Put] %s 资源池已满，销毁归还的资源", p.poolName)
 		return p.factory.Destroy(resource)
 	}
 }

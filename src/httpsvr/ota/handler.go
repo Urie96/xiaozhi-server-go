@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 	"xiaozhi-server-go/src/configs"
-	"xiaozhi-server-go/src/core/utils"
+	"xiaozhi-server-go/src/logger"
 
 	"github.com/gin-gonic/gin"
 )
@@ -78,13 +78,13 @@ func (s *DefaultOTAService) Trans2OTARequestBody(raw map[string]any) OTARequestB
 		if err := json.Unmarshal(b, &req); err == nil {
 			return req
 		} else {
-			utils.DefaultLogger.Warn("转换 OTARequestBody 失败: %v", err)
+			logger.Warn("转换 OTARequestBody 失败: %v", err)
 		}
 	} else {
-		utils.DefaultLogger.Error("OTARequestBody 请求体 JSON 编码失败: %v", err)
+		logger.Error("OTARequestBody 请求体 JSON 编码失败: %v", err)
 	}
 
-	utils.DefaultLogger.Warn("直接转换 OTARequestBody 失败，尝试逐字段兼容转换")
+	logger.Warn("直接转换 OTARequestBody 失败，尝试逐字段兼容转换")
 	// 失败则逐字段兼容转换
 	// Application
 	if app, ok := raw["application"].(map[string]any); ok {
@@ -226,7 +226,7 @@ func (s *DefaultOTAService) handlePostOTA(c *gin.Context) {
 	var raw map[string]any
 	if err := c.ShouldBindJSON(&raw); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "解析失败: " + err.Error()})
-		utils.DefaultLogger.Error("解析 OTA 请求体失败: %v", err)
+		logger.Error("解析 OTA 请求体失败: %v", err)
 		return
 	}
 	// 兼容转换到 OTARequestBody
@@ -258,10 +258,10 @@ func (s *DefaultOTAService) handlePostOTA(c *gin.Context) {
 	resp.Firmware.URL = firmwareURL
 	resp.Websocket.URL = updateURL
 	if resp.Websocket.URL == "" {
-		utils.DefaultLogger.Warn("===========================================================")
-		utils.DefaultLogger.Warn("=====  WebSocket URL 未配置，OTA 服务可能无法正常工作 =====")
-		utils.DefaultLogger.Warn("=====  请尽快修改配置并重启服务                       =====")
-		utils.DefaultLogger.Warn("===========================================================")
+		logger.Warn("===========================================================")
+		logger.Warn("=====  WebSocket URL 未配置，OTA 服务可能无法正常工作 =====")
+		logger.Warn("=====  请尽快修改配置并重启服务                       =====")
+		logger.Warn("===========================================================")
 	}
 
 	c.JSON(http.StatusOK, resp)

@@ -2,7 +2,7 @@ package ollama
 
 import (
 	"xiaozhi-server-go/src/core/providers/vlllm"
-	"xiaozhi-server-go/src/core/utils"
+	"xiaozhi-server-go/src/logger"
 )
 
 // OllamaVLLMProvider Ollama类型的VLLLM提供者
@@ -11,10 +11,10 @@ type OllamaVLLMProvider struct {
 }
 
 // NewProvider 创建Ollama VLLLM提供者实例
-func NewProvider(config *vlllm.Config, logger *utils.Logger) (*vlllm.Provider, error) {
+func NewProvider(config *vlllm.Config) (*vlllm.Provider, error) {
 	// 直接使用基础VLLLM Provider，因为它已经复用了LLM架构
 	// Ollama类型的VLLLM只需要确保使用正确的模型名称（如qwen2-vl:7b）
-	provider, err := vlllm.NewProvider(config, logger)
+	provider, err := vlllm.NewProvider(config)
 	if err != nil {
 		return nil, err
 	}

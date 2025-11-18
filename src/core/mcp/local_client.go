@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 	"xiaozhi-server-go/src/configs"
-	"xiaozhi-server-go/src/core/utils"
+	"xiaozhi-server-go/src/logger"
 
 	"github.com/sashabaranov/go-openai"
 )
@@ -16,17 +16,15 @@ type LocalClient struct {
 	tools   []Tool
 	mu      sync.RWMutex
 	ctx     context.Context
-	logger  *utils.Logger
 	handler map[string]HandlerFunc
 	cfg     *configs.Config
 }
 
-func NewLocalClient(logger *utils.Logger, cfg *configs.Config) (*LocalClient, error) {
+func NewLocalClient(cfg *configs.Config) (*LocalClient, error) {
 	c := &LocalClient{
 		tools:   make([]Tool, 0),
 		handler: make(map[string]HandlerFunc),
 		mu:      sync.RWMutex{},
-		logger:  logger,
 		cfg:     cfg,
 	}
 	return c, nil
@@ -34,37 +32,37 @@ func NewLocalClient(logger *utils.Logger, cfg *configs.Config) (*LocalClient, er
 
 func (c *LocalClient) RegisterTools() {
 	if c.cfg == nil {
-		c.logger.Error("RegisterTools: config is nil")
+		logger.Error("RegisterTools: config is nil")
 		return
 	}
 
 	if c.cfg.LocalMCPFun == nil {
-		c.logger.Warn("RegisterTools: LocalMCPFun is nil")
+		logger.Warn("RegisterTools: LocalMCPFun is nil")
 		return
 	}
 
 	funcs := c.cfg.LocalMCPFun
 	if len(funcs) == 0 {
-		c.logger.Info("RegisterTools: LocalMCPFun is empty")
+		logger.Info("RegisterTools: LocalMCPFun is empty")
 		return
 	}
 
 	for _, localFunc := range funcs {
 		if localFunc.Name == "exit" && localFunc.Enabled {
 			c.AddToolExit()
-			c.logger.Info("RegisterTools: exit tool registered")
+			logger.Info("RegisterTools: exit tool registered")
 		} else if localFunc.Name == "time" && localFunc.Enabled {
 			c.AddToolTime()
-			c.logger.Info("RegisterTools: time tool registered")
+			logger.Info("RegisterTools: time tool registered")
 		} else if localFunc.Name == "change_role" && localFunc.Enabled {
 			c.AddToolChangeRole()
-			c.logger.Info("RegisterTools: change_role tool registered")
+			logger.Info("RegisterTools: change_role tool registered")
 		} else if localFunc.Name == "play_music" && localFunc.Enabled {
 			c.AddToolPlayMusic()
-			c.logger.Info("RegisterTools: play_music tool registered")
+			logger.Info("RegisterTools: play_music tool registered")
 		} else {
 			if localFunc.Enabled {
-				c.logger.Warn("RegisterTools: unknown function name %s", localFunc.Name)
+				logger.Warn("RegisterTools: unknown function name %s", localFunc.Name)
 			}
 		}
 	}
@@ -74,7 +72,7 @@ func (c *LocalClient) RegisterTools() {
 func (c *LocalClient) Start(ctx context.Context) error {
 	c.ctx = ctx
 	c.RegisterTools()
-	c.logger.Info("Local MCP client started")
+	logger.Info("Local MCP client started")
 	return nil
 }
 

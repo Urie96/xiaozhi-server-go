@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 	"xiaozhi-server-go/src/core/types"
-	"xiaozhi-server-go/src/core/utils"
+	"xiaozhi-server-go/src/logger"
 
 	"github.com/sashabaranov/go-openai"
 )
@@ -24,7 +24,6 @@ const (
 
 // XiaoZhiMCPClient MCP客户端
 type XiaoZhiMCPClient struct {
-	logger     *utils.Logger
 	conn       Conn
 	sessionID  string // 会话ID，用于标识连接
 	tools      []Tool
@@ -45,9 +44,8 @@ type XiaoZhiMCPClient struct {
 }
 
 // NewXiaoZhiMCPClient 创建一个新的MCP客户端
-func NewXiaoZhiMCPClient(logger *utils.Logger, conn Conn, sessionID string) *XiaoZhiMCPClient {
+func NewXiaoZhiMCPClient(conn Conn, sessionID string) *XiaoZhiMCPClient {
 	return &XiaoZhiMCPClient{
-		logger:      logger,
 		conn:        conn,
 		sessionID:   sessionID,
 		tools:       make([]Tool, 0),
@@ -181,7 +179,7 @@ func (c *XiaoZhiMCPClient) CallTool(
 ) (any, error) {
 	defer func() {
 		if r := recover(); r != nil {
-			c.logger.Error(fmt.Sprintf("调用工具 %s 时发生Panic: %v", name, r))
+			logger.Error(fmt.Sprintf("调用工具 %s 时发生Panic: %v", name, r))
 		}
 	}()
 	if !c.IsReady() {
@@ -228,7 +226,7 @@ func (c *XiaoZhiMCPClient) CallTool(
 		return nil, fmt.Errorf("序列化MCP工具调用请求失败: %v", err)
 	}
 
-	c.logger.Info(fmt.Sprintf("发送客户端mcp工具调用请求: %s，参数: %s", originalName, string(data)))
+	logger.Info(fmt.Sprintf("发送客户端mcp工具调用请求: %s，参数: %s", originalName, string(data)))
 	if c.conn == nil {
 		// 清理资源
 		c.callResultsLock.Lock()
@@ -252,7 +250,7 @@ func (c *XiaoZhiMCPClient) CallTool(
 		if err, ok := result.(error); ok {
 			return nil, err
 		}
-		c.logger.Info(fmt.Sprintf("客户端mcp工具调用 %s 成功，结果: %v", originalName, result))
+		logger.Info(fmt.Sprintf("客户端mcp工具调用 %s 成功，结果: %v", originalName, result))
 		//  map[content:[map[text:{"audio_speaker":{"volume":10},"screen":{},"network":{"type":"wifi","ssid":"zgcinnotown","signal":"weak"}} type:text]] isError:false]
 		// 将里面的text提取出来
 		if resultMap, ok := result.(map[string]any); ok {
@@ -277,7 +275,7 @@ func (c *XiaoZhiMCPClient) CallTool(
 							}
 							return ret, nil
 						}
-						c.logger.Info(fmt.Sprintf("工具调用返回文本: %s", text))
+						logger.Info(fmt.Sprintf("工具调用返回文本: %s", text))
 						ret := types.ActionResponse{
 							Action: types.ActionTypeReqLLM,
 							Result: text,
@@ -314,7 +312,7 @@ func (c *XiaoZhiMCPClient) IsReady() bool {
 func (c *XiaoZhiMCPClient) SendMCPInitializeMessage() error {
 	defer func() {
 		if r := recover(); r != nil {
-			c.logger.Error(fmt.Sprintf("发送MCP初始化消息时发生Panic: %v", r))
+			logger.Error(fmt.Sprintf("发送MCP初始化消息时发生Panic: %v", r))
 		}
 	}()
 
@@ -350,7 +348,7 @@ func (c *XiaoZhiMCPClient) SendMCPInitializeMessage() error {
 		return fmt.Errorf("序列化MCP初始化消息失败: %v", err)
 	}
 
-	c.logger.Info("[MCP] [初始化] 发送初始化消息")
+	logger.Info("[MCP] [初始化] 发送初始化消息")
 	if c.conn == nil {
 		return fmt.Errorf("MCP客户端尚未连接")
 	}
@@ -361,7 +359,7 @@ func (c *XiaoZhiMCPClient) SendMCPInitializeMessage() error {
 func (c *XiaoZhiMCPClient) SendMCPToolsListRequest() error {
 	defer func() {
 		if r := recover(); r != nil {
-			c.logger.Error(fmt.Sprintf("发送MCP工具列表请求时发生Panic: %v", r))
+			logger.Error(fmt.Sprintf("发送MCP工具列表请求时发生Panic: %v", r))
 		}
 	}()
 
@@ -381,7 +379,7 @@ func (c *XiaoZhiMCPClient) SendMCPToolsListRequest() error {
 		return fmt.Errorf("序列化MCP工具列表请求失败: %v", err)
 	}
 
-	c.logger.Debug("发送MCP工具列表请求")
+	logger.Debug("发送MCP工具列表请求")
 	if c.conn == nil {
 		return fmt.Errorf("MCP客户端尚未连接")
 	}
@@ -392,7 +390,7 @@ func (c *XiaoZhiMCPClient) SendMCPToolsListRequest() error {
 func (c *XiaoZhiMCPClient) SendMCPToolsListContinueRequest(cursor string) error {
 	defer func() {
 		if r := recover(); r != nil {
-			c.logger.Error(fmt.Sprintf("发送带cursor的MCP工具列表请求时发生Panic: %v", r))
+			logger.Error(fmt.Sprintf("发送带cursor的MCP工具列表请求时发生Panic: %v", r))
 		}
 	}()
 
@@ -415,7 +413,7 @@ func (c *XiaoZhiMCPClient) SendMCPToolsListContinueRequest(cursor string) error 
 		return fmt.Errorf("序列化MCP工具列表请求失败: %v", err)
 	}
 
-	c.logger.Info(fmt.Sprintf("发送带cursor的MCP工具列表请求: %s", cursor))
+	logger.Info(fmt.Sprintf("发送带cursor的MCP工具列表请求: %s", cursor))
 	if c.conn == nil {
 		return fmt.Errorf("MCP客户端尚未连接")
 	}
@@ -424,7 +422,7 @@ func (c *XiaoZhiMCPClient) SendMCPToolsListContinueRequest(cursor string) error 
 
 // HandleMCPMessage 处理MCP消息
 func (c *XiaoZhiMCPClient) HandleMCPMessage(msgMap map[string]any) error {
-	// c.logger.Info("处理MCP消息: " + fmt.Sprintf("%v", msgMap))
+	// logger.Info("处理MCP消息: " + fmt.Sprintf("%v", msgMap))
 	// 获取payload
 	payload, ok := msgMap["payload"].(map[string]any)
 	if !ok {
@@ -449,19 +447,19 @@ func (c *XiaoZhiMCPClient) HandleMCPMessage(msgMap map[string]any) error {
 		c.callResultsLock.Unlock()
 
 		if id == mcpInitializeID { // 如果是初始化响应
-			c.logger.Debug("收到MCP初始化响应")
+			logger.Debug("收到MCP初始化响应")
 
 			// 解析服务器信息
 			if serverInfo, ok := result.(map[string]any)["serverInfo"].(map[string]any); ok {
 				name := serverInfo["name"]
 				version := serverInfo["version"]
-				c.logger.Info(fmt.Sprintf("[MCP] [服务器信息 %v/%v]", name, version))
+				logger.Info(fmt.Sprintf("[MCP] [服务器信息 %v/%v]", name, version))
 			}
 
 			// 初始化完成后，请求工具列表
 			return c.SendMCPToolsListRequest()
 		} else if id == mcpToolsListID { // 如果是tools/list响应
-			c.logger.Debug("收到MCP工具列表响应")
+			logger.Debug("收到MCP工具列表响应")
 
 			// 解析工具列表
 			toolNames := ""
@@ -471,7 +469,7 @@ func (c *XiaoZhiMCPClient) HandleMCPMessage(msgMap map[string]any) error {
 					return fmt.Errorf("工具列表格式错误")
 				}
 
-				c.logger.Debug(fmt.Sprintf("客户端设备支持的工具数量: %d", len(tools)))
+				logger.Debug(fmt.Sprintf("客户端设备支持的工具数量: %d", len(tools)))
 
 				// 解析工具并添加到列表中
 				c.mu.Lock()
@@ -520,15 +518,15 @@ func (c *XiaoZhiMCPClient) HandleMCPMessage(msgMap map[string]any) error {
 					// 建立名称映射关系
 					sanitizedName := sanitizeToolName(name)
 					c.toolNameMap[sanitizedName] = name
-					c.logger.Debug(fmt.Sprintf("客户端工具 #%d: %v", i+1, name))
+					logger.Debug(fmt.Sprintf("客户端工具 #%d: %v", i+1, name))
 					toolNames += fmt.Sprintf("%s ", name)
 				}
-				c.logger.Info(fmt.Sprintf("[MCP] [工具列表] %s", toolNames))
+				logger.Info(fmt.Sprintf("[MCP] [工具列表] %s", toolNames))
 
 				// 检查是否需要继续获取下一页工具
 				if nextCursor, ok := toolsData["nextCursor"].(string); ok && nextCursor != "" {
 					// 如果有下一页，发送带cursor的请求
-					c.logger.Info(fmt.Sprintf("有更多工具，nextCursor: %s", nextCursor))
+					logger.Info(fmt.Sprintf("有更多工具，nextCursor: %s", nextCursor))
 					c.mu.Unlock()
 					return c.SendMCPToolsListContinueRequest(nextCursor)
 				} else {
@@ -540,12 +538,12 @@ func (c *XiaoZhiMCPClient) HandleMCPMessage(msgMap map[string]any) error {
 		}
 	} else if method, hasMethod := payload["method"].(string); hasMethod {
 		// 处理客户端发起的请求
-		c.logger.Info(fmt.Sprintf("收到MCP客户端请求: %s", method))
+		logger.Info(fmt.Sprintf("收到MCP客户端请求: %s", method))
 		// TODO: 实现处理客户端请求的逻辑
 	} else if errorData, hasError := payload["error"].(map[string]any); hasError {
 		// 处理错误响应
 		errorMsg, _ := errorData["message"].(string)
-		c.logger.Error(fmt.Sprintf("收到MCP错误响应: %v", errorMsg))
+		logger.Error(fmt.Sprintf("收到MCP错误响应: %v", errorMsg))
 
 		// 检查是否是工具调用响应
 		if id, ok := payload["id"].(float64); ok {

@@ -7,6 +7,7 @@ import (
 	"xiaozhi-server-go/src/core/types"
 	"xiaozhi-server-go/src/core/utils"
 	"xiaozhi-server-go/src/httpsvr/vision"
+	"xiaozhi-server-go/src/logger"
 )
 
 func (h *ConnectionHandler) initMCPResultHandlers() {
@@ -25,11 +26,11 @@ func (h *ConnectionHandler) handleMCPResultCall(result types.ActionResponse) str
 	errResult := "调用工具失败"
 	// 先取result
 	if result.Action != types.ActionTypeCallHandler {
-		h.logger.Error("handleMCPResultCall: result.Action is not ActionTypeCallHandler, but %d", result.Action)
+		logger.Error("handleMCPResultCall: result.Action is not ActionTypeCallHandler, but %d", result.Action)
 		return errResult
 	}
 	if result.Result == nil {
-		h.logger.Error("handleMCPResultCall: result.Result is nil")
+		logger.Error("handleMCPResultCall: result.Result is nil")
 		return errResult
 	}
 
@@ -40,41 +41,41 @@ func (h *ConnectionHandler) handleMCPResultCall(result types.ActionResponse) str
 			handler(Caller.Args)
 			return "调用工具成功: " + Caller.FuncName
 		} else {
-			h.logger.Error("handleMCPResultCall: no handler found for function %s", Caller.FuncName)
+			logger.Error("handleMCPResultCall: no handler found for function %s", Caller.FuncName)
 		}
 	} else {
-		h.logger.Error("handleMCPResultCall: result.Result is not a map[string]any")
+		logger.Error("handleMCPResultCall: result.Result is not a map[string]any")
 	}
 	return errResult
 }
 
 func (h *ConnectionHandler) mcp_handler_play_music(args any) {
 	if songName, ok := args.(string); ok {
-		h.logger.Info("mcp_handler_play_music: %s", songName)
+		logger.Info("mcp_handler_play_music: %s", songName)
 		if path, name, err := utils.GetMusicFilePathFuzzy(songName); err != nil {
-			h.logger.Error("mcp_handler_play_music: Play failed: %v", err)
+			logger.Error("mcp_handler_play_music: Play failed: %v", err)
 			h.SystemSpeak("没有找到名为" + songName + "的歌曲")
 		} else {
 			// h.SystemSpeak("这就为您播放音乐: " + songName)
 			h.sendAudioMessage(path, name, h.tts_last_text_index, h.talkRound)
 		}
 	} else {
-		h.logger.Error("mcp_handler_play_music: args is not a string")
+		logger.Error("mcp_handler_play_music: args is not a string")
 	}
 }
 
 func (h *ConnectionHandler) mcp_handler_change_voice(args any) {
 	if voice, ok := args.(string); ok {
-		h.logger.Info("mcp_handler_change_voice: %s", voice)
+		logger.Info("mcp_handler_change_voice: %s", voice)
 		if err, voiceName := h.providers.tts.SetVoice(voice); err != nil {
-			h.logger.Error("mcp_handler_change_voice: SetVoice failed: %v", err)
+			logger.Error("mcp_handler_change_voice: SetVoice failed: %v", err)
 			h.SystemSpeak("切换语音失败，没有叫" + voice + "的音色")
 		} else {
 			h.LogInfo(fmt.Sprintf("mcp_handler_change_voice: SetVoice success: %s", voiceName))
 			h.SystemSpeak("已切换到音色" + voice)
 		}
 	} else {
-		h.logger.Error("mcp_handler_change_voice: args is not a string")
+		logger.Error("mcp_handler_change_voice: args is not a string")
 	}
 }
 
@@ -83,7 +84,7 @@ func (h *ConnectionHandler) mcp_handler_change_role(args any) {
 		role := params["role"]
 		prompt := params["prompt"]
 
-		h.logger.Info("mcp_handler_change_role: %s", role)
+		logger.Info("mcp_handler_change_role: %s", role)
 		h.dialogueManager.SetSystemMessage(prompt)
 		h.dialogueManager.KeepRecentMessages(5) // 保留最近5条消息
 		if getter, ok := h.providers.tts.(ttsConfigGetter); ok {
@@ -100,7 +101,7 @@ func (h *ConnectionHandler) mcp_handler_change_role(args any) {
 		}
 		h.SystemSpeak("已切换到新角色 " + role)
 	} else {
-		h.logger.Error("mcp_handler_change_role: args is not a string")
+		logger.Error("mcp_handler_change_role: args is not a string")
 	}
 }
 
@@ -109,7 +110,7 @@ func (h *ConnectionHandler) mcp_handler_exit(args any) {
 		h.closeAfterChat = true
 		h.SystemSpeak(text)
 	} else {
-		h.logger.Error("mcp_handler_exit: args is not a string")
+		logger.Error("mcp_handler_exit: args is not a string")
 	}
 }
 
@@ -118,11 +119,11 @@ func (h *ConnectionHandler) mcp_handler_take_photo(args any) {
 	resultStr, _ := args.(string)
 	var visionResponse vision.VisionResponse
 	if err := json.Unmarshal([]byte(resultStr), &visionResponse); err != nil {
-		h.logger.Error("解析VisionResponse失败: %v", err)
+		logger.Error("解析VisionResponse失败: %v", err)
 	}
 
 	if !visionResponse.Success {
-		h.logger.Error("拍照失败: %s", visionResponse.Message)
+		logger.Error("拍照失败: %s", visionResponse.Message)
 		h.genResponseByLLM(context.Background(), h.dialogueManager.GetLLMDialogue(), h.talkRound)
 
 	}

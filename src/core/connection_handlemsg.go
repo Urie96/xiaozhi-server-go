@@ -9,6 +9,7 @@ import (
 	"xiaozhi-server-go/src/core/image"
 	"xiaozhi-server-go/src/core/providers"
 	"xiaozhi-server-go/src/core/utils"
+	"xiaozhi-server-go/src/logger"
 )
 
 // handleMessage 处理接收到的消息
@@ -27,12 +28,12 @@ func (h *ConnectionHandler) handleMessage(messageType int, message []byte) error
 				// 解码opus数据为PCM
 				decodedData, err := h.opusDecoder.Decode(message)
 				if err != nil {
-					h.logger.Error(fmt.Sprintf("解码Opus音频失败: %v", err))
+					logger.Error(fmt.Sprintf("解码Opus音频失败: %v", err))
 					// 即使解码失败，也尝试将原始数据传递给ASR处理
 					h.clientAudioQueue <- message
 				} else {
 					// 解码成功，将PCM数据放入队列
-					h.logger.Debug(fmt.Sprintf("Opus解码成功: %d bytes -> %d bytes", len(message), len(decodedData)))
+					logger.Debug(fmt.Sprintf("Opus解码成功: %d bytes -> %d bytes", len(message), len(decodedData)))
 					if len(decodedData) > 0 {
 						h.clientAudioQueue <- decodedData
 					}
@@ -44,7 +45,7 @@ func (h *ConnectionHandler) handleMessage(messageType int, message []byte) error
 		}
 		return nil
 	default:
-		h.logger.Error(fmt.Sprintf("未知的消息类型: %d", messageType))
+		logger.Error(fmt.Sprintf("未知的消息类型: %d", messageType))
 		return fmt.Errorf("未知的消息类型: %d", messageType)
 	}
 }
@@ -92,7 +93,7 @@ func (h *ConnectionHandler) processClientTextMessage(ctx context.Context, text s
 	case "mcp":
 		return h.mcpManager.HandleXiaoZhiMCPMessage(msgMap)
 	default:
-		h.logger.Warn("=== 未知消息类型 ===", map[string]any{
+		logger.Warn("=== 未知消息类型 ===", map[string]any{
 			"unknown_type": msgType,
 			"full_message": msgMap,
 		})
@@ -143,7 +144,7 @@ func (h *ConnectionHandler) handleHelloMessage(msgMap map[string]any) error {
 		MaxChannels: h.clientAudioChannels,   // 单声道音频
 	})
 	if err != nil {
-		h.logger.Error(fmt.Sprintf("初始化Opus解码器失败: %v", err))
+		logger.Error(fmt.Sprintf("初始化Opus解码器失败: %v", err))
 	} else {
 		h.opusDecoder = opusDecoder
 		h.LogInfo("[Opus] [解码器] 初始化成功")
@@ -154,7 +155,6 @@ func (h *ConnectionHandler) handleHelloMessage(msgMap map[string]any) error {
 
 // handleListenMessage 处理语音相关消息
 func (h *ConnectionHandler) handleListenMessage(msgMap map[string]any) error {
-
 	// 处理state参数
 	state, ok := msgMap["state"].(string)
 	if !ok {
@@ -186,7 +186,7 @@ func (h *ConnectionHandler) handleListenMessage(msgMap map[string]any) error {
 			return h.handleChatMessage(context.Background(), text)
 		} else {
 			// 既没有图片也没有文本
-			h.logger.Warn("detect消息既没有text也没有image参数")
+			logger.Warn("detect消息既没有text也没有image参数")
 			return fmt.Errorf("detect消息缺少text或image参数")
 		}
 	}
@@ -217,7 +217,7 @@ func (h *ConnectionHandler) handleImageMessage(ctx context.Context, msgMap map[s
 
 	// 检查是否有VLLLM Provider
 	if h.providers.vlllm == nil {
-		h.logger.Warn("未配置VLLLM服务，图片消息将被忽略")
+		logger.Warn("未配置VLLLM服务，图片消息将被忽略")
 		return h.conn.WriteMessage(1, []byte("系统暂不支持图片处理功能"))
 	}
 
@@ -260,19 +260,19 @@ func (h *ConnectionHandler) handleImageMessage(ctx context.Context, msgMap map[s
 	// 立即发送STT消息
 	err := h.sendSTTMessage(text)
 	if err != nil {
-		h.logger.Error(fmt.Sprintf("发送STT消息失败: %v", err))
+		logger.Error(fmt.Sprintf("发送STT消息失败: %v", err))
 		return fmt.Errorf("发送STT消息失败: %v", err)
 	}
 
 	// 发送TTS开始状态
 	if err := h.sendTTSMessage("start", "", 0); err != nil {
-		h.logger.Error(fmt.Sprintf("发送TTS开始状态失败: %v", err))
+		logger.Error(fmt.Sprintf("发送TTS开始状态失败: %v", err))
 		return fmt.Errorf("发送TTS开始状态失败: %v", err)
 	}
 
 	// 发送思考状态的情绪
 	if err := h.sendEmotionMessage("thinking"); err != nil {
-		h.logger.Error(fmt.Sprintf("发送思考状态情绪消息失败: %v", err))
+		logger.Error(fmt.Sprintf("发送思考状态情绪消息失败: %v", err))
 		return fmt.Errorf("发送情绪消息失败: %v", err)
 	}
 

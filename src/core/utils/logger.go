@@ -135,7 +135,7 @@ func (h *CustomTextHandler) WithGroup(name string) slog.Handler {
 
 // Logger 日志接口实现
 type Logger struct {
-	config      *LogCfg
+	logLevel    string
 	textLogger  *slog.Logger // 控制台文本输出
 	currentDate string       // 当前日期 YYYY-MM-DD
 }
@@ -157,9 +157,9 @@ func configLogLevelToSlogLevel(configLevel string) slog.Level {
 }
 
 // NewLogger 创建新的日志记录器
-func NewLogger(config *LogCfg) (*Logger, error) {
+func NewLogger(logLevel string) (*Logger, error) {
 	// 设置slog级别
-	slogLevel := configLogLevelToSlogLevel(config.LogLevel)
+	slogLevel := configLogLevelToSlogLevel(logLevel)
 
 	// 创建自定义文本处理器（用于控制台输出）
 	customHandler := &CustomTextHandler{
@@ -170,13 +170,9 @@ func NewLogger(config *LogCfg) (*Logger, error) {
 	textLogger := slog.New(customHandler)
 
 	logger := &Logger{
-		config:      config,
+		logLevel:    logLevel,
 		textLogger:  textLogger,
 		currentDate: time.Now().Format("2006-01-02"),
-	}
-
-	if DefaultLogger == nil {
-		DefaultLogger = logger
 	}
 
 	return logger, nil
@@ -213,7 +209,7 @@ func (l *Logger) log(level slog.Level, msg string, fields ...any) {
 
 // Debug 记录调试级别日志
 func (l *Logger) Debug(msg string, args ...any) {
-	if l.config.LogLevel == "DEBUG" {
+	if l.logLevel == "DEBUG" {
 		if len(args) > 0 && containsFormatPlaceholders(msg) {
 			formattedMsg := fmt.Sprintf(msg, args...)
 			l.log(slog.LevelDebug, formattedMsg)

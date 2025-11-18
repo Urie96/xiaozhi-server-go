@@ -6,6 +6,7 @@ import (
 	"sync/atomic"
 	"time"
 	"xiaozhi-server-go/src/core/utils"
+	"xiaozhi-server-go/src/logger"
 )
 
 // sendHelloMessage 发送欢迎消息
@@ -158,9 +159,9 @@ func (h *ConnectionHandler) sendAudioMessage(filepath string, text string, textI
 	if textIndex == 1 {
 		now := time.Now()
 		spentTime := now.Sub(h.roundStartTime)
-		h.logger.Debug("回复首句耗时 %s 第一句话【%s】, round: %d", spentTime, text, round)
+		logger.Debug("回复首句耗时 %s 第一句话【%s】, round: %d", spentTime, text, round)
 	}
-	h.logger.Debug("TTS发送(%s): \"%s\" (索引:%d/%d，时长:%f，帧数:%d)", h.serverAudioFormat, text, textIndex, h.tts_last_text_index, duration, len(audioData))
+	logger.Debug("TTS发送(%s): \"%s\" (索引:%d/%d，时长:%f，帧数:%d)", h.serverAudioFormat, text, textIndex, h.tts_last_text_index, duration, len(audioData))
 
 	// 分时发送音频数据
 	if err := h.sendAudioFrames(audioData, text, round); err != nil {

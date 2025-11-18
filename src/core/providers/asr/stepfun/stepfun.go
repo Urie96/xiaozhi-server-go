@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 	"xiaozhi-server-go/src/core/providers/asr"
-	"xiaozhi-server-go/src/core/utils"
+	"xiaozhi-server-go/src/logger"
 
 	"github.com/gorilla/websocket"
 )
@@ -27,7 +27,6 @@ type Provider struct {
 	model  string
 	voice  string
 	wsURL  string
-	logger *utils.Logger
 	prompt string
 
 	// 流式识别相关字段
@@ -38,7 +37,7 @@ type Provider struct {
 	connMutex   sync.Mutex
 }
 
-func NewProvider(config *asr.Config, deleteFile bool, logger *utils.Logger) (*Provider, error) {
+func NewProvider(config *asr.Config, deleteFile bool) (*Provider, error) {
 	base := asr.NewBaseProvider(config, deleteFile)
 
 	// 从config.Data中获取配置
@@ -67,7 +66,6 @@ func NewProvider(config *asr.Config, deleteFile bool, logger *utils.Logger) (*Pr
 		model:        model,
 		voice:        voice,
 		wsURL:        fmt.Sprintf("wss://api.stepfun.com/v1/realtime?model=%s", model),
-		logger:       logger,
 		prompt:       prompt,
 	}
 
@@ -126,11 +124,11 @@ func (p *Provider) Transcribe(ctx context.Context, audioData []byte) (string, er
 
 // StartStreaming 建立与Step Realtime的WebSocket连接并发送session.update
 func (p *Provider) StartStreaming(ctx context.Context) error {
-	p.logger.Info("----开始Step流式识别----")
+	logger.Info("----开始Step流式识别----")
 	p.ResetStartListenTime()
 
 	if p.isStreaming {
-		p.logger.Debug("Step流式识别已启动，跳过初始化")
+		logger.Debug("Step流式识别已启动，跳过初始化")
 		return nil
 	}
 
@@ -138,7 +136,7 @@ func (p *Provider) StartStreaming(ctx context.Context) error {
 	p.connMutex.Lock()
 	// 确保旧连接关闭
 	if p.conn != nil {
-		p.logger.Debug("Step流式识别关闭旧连接")
+		logger.Debug("Step流式识别关闭旧连接")
 		p.closeConnection()
 	}
 
@@ -156,7 +154,7 @@ func (p *Provider) StartStreaming(ctx context.Context) error {
 		}
 		return fmt.Errorf("WebSocket连接失败(状态码:%d): %v", status, err)
 	}
-	p.logger.Debug("Step流式识别建立WebSocket连接成功")
+	logger.Debug("Step流式识别建立WebSocket连接成功")
 	p.conn = conn
 	p.connMutex.Unlock()
 
@@ -217,10 +215,10 @@ func (p *Provider) sendJSON(v any) error {
 }
 
 func (p *Provider) readLoop() {
-	p.logger.Info("Step流式识别协程已启动")
+	logger.Info("Step流式识别协程已启动")
 	defer func() {
 		if r := recover(); r != nil {
-			p.logger.Error("Step流式识别协程panic: %v", r)
+			logger.Error("Step流式识别协程panic: %v", r)
 		}
 		p.connMutex.Lock()
 		p.isStreaming = false
@@ -228,7 +226,7 @@ func (p *Provider) readLoop() {
 			p.closeConnection()
 		}
 		p.connMutex.Unlock()
-		p.logger.Info("Step流式识别协程已结束")
+		logger.Info("Step流式识别协程已结束")
 	}()
 
 	var baseEvent BaseEvent
@@ -254,12 +252,12 @@ func (p *Provider) readLoop() {
 			return
 		}
 
-		p.logger.Debug("Step流式识别事件类型: %s", baseEvent.Type)
+		logger.Debug("Step流式识别事件类型: %s", baseEvent.Type)
 		switch baseEvent.Type {
 		case "error":
 			e := ErrorEvent{}
 			if err := json.Unmarshal(data, &e); err != nil {
-				p.logger.Error("解析服务端事件失败: %v", err)
+				logger.Error("解析服务端事件失败: %v", err)
 				return
 			}
 			p.setErrorAndStop(fmt.Errorf("服务端错误: %v", e.Error.Message))
@@ -267,22 +265,22 @@ func (p *Provider) readLoop() {
 		case "session.created":
 			e := SessionCreatedEvent{}
 			if err := json.Unmarshal(data, &e); err != nil {
-				p.logger.Error("解析服务端事件失败: %v", err)
+				logger.Error("解析服务端事件失败: %v", err)
 				return
 			}
-			p.logger.Info("type: %s, sessionID: %s", e.Type, e.Session.ID)
+			logger.Info("type: %s, sessionID: %s", e.Type, e.Session.ID)
 		case "session.updated", "input_audio_buffer.speech_started", "input_audio_buffer.speech_stopped", "input_audio_buffer.committed", "input_audio_buffer.cleared":
 			// 无需特殊处理
 			continue
 		case "conversation.item.input_audio_transcription.completed":
 			e := ConversationItemInputAudioTranscriptionCompletedEvent{}
 			if err := json.Unmarshal(data, &e); err != nil {
-				p.logger.Error("解析服务端事件失败: %v", err)
+				logger.Error("解析服务端事件失败: %v", err)
 				return
 			}
 			// 读取转写结果
 			text := e.Transcript
-			p.logger.Debug("[DEBUG] Step识别结果: %s", text)
+			logger.Debug("[DEBUG] Step识别结果: %s", text)
 			p.connMutex.Lock()
 			p.result = text
 			p.connMutex.Unlock()
@@ -311,9 +309,9 @@ func (p *Provider) setErrorAndStop(err error) {
 	p.isStreaming = false
 	msg := err.Error()
 	if strings.Contains(msg, "use of closed network connection") {
-		p.logger.Debug("Step setErrorAndStop: %v", err)
+		logger.Debug("Step setErrorAndStop: %v", err)
 	} else {
-		p.logger.Error("Step setErrorAndStop: %v", err)
+		logger.Error("Step setErrorAndStop: %v", err)
 	}
 	if p.conn != nil {
 		p.closeConnection()
@@ -323,7 +321,7 @@ func (p *Provider) setErrorAndStop(err error) {
 func (p *Provider) closeConnection() {
 	defer func() {
 		if r := recover(); r != nil {
-			p.logger.Error("关闭连接时发生错误: %v", r)
+			logger.Error("关闭连接时发生错误: %v", r)
 		}
 	}()
 	if p.conn != nil {
@@ -344,7 +342,7 @@ func (p *Provider) Reset() error {
 
 	// 重置音频处理
 	p.InitAudioProcessing()
-	p.logger.Info("Step ASR状态已重置")
+	logger.Info("Step ASR状态已重置")
 	return nil
 }
 
@@ -356,13 +354,13 @@ func (p *Provider) Cleanup() error {
 	p.connMutex.Lock()
 	defer p.connMutex.Unlock()
 	p.closeConnection()
-	p.logger.Info("Step ASR资源已清理")
+	logger.Info("Step ASR资源已清理")
 	return nil
 }
 
 func init() {
 	// 注册阶跃ASR提供者
-	asr.Register("stepfun", func(config *asr.Config, deleteFile bool, logger *utils.Logger) (asr.Provider, error) {
-		return NewProvider(config, deleteFile, logger)
+	asr.Register("stepfun", func(config *asr.Config, deleteFile bool) (asr.Provider, error) {
+		return NewProvider(config, deleteFile)
 	})
 }

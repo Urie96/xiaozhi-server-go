@@ -13,7 +13,7 @@ import (
 	"xiaozhi-server-go/src/core/image"
 	"xiaozhi-server-go/src/core/providers"
 	"xiaozhi-server-go/src/core/providers/vlllm"
-	"xiaozhi-server-go/src/core/utils"
+	"xiaozhi-server-go/src/logger"
 
 	"github.com/gin-gonic/gin"
 )
@@ -24,18 +24,13 @@ const (
 )
 
 type DefaultVisionService struct {
-	logger   *utils.Logger
 	config   *configs.Config
 	vlllmMap map[string]*vlllm.Provider // 支持多个VLLLM provider
 }
 
 // NewDefaultVisionService 构造函数
-func NewDefaultVisionService(
-	config *configs.Config,
-	logger *utils.Logger,
-) (*DefaultVisionService, error) {
+func NewDefaultVisionService(config *configs.Config) (*DefaultVisionService, error) {
 	service := &DefaultVisionService{
-		logger:   logger,
 		config:   config,
 		vlllmMap: make(map[string]*vlllm.Provider),
 	}
@@ -53,7 +48,7 @@ func (s *DefaultVisionService) initVLLMProviders() error {
 	// 先看配置中的VLLLM provider
 	selected_vlllm := s.config.SelectedModule["VLLLM"]
 	if selected_vlllm == "" {
-		s.logger.Warn("请设置好VLLLM provider配置")
+		logger.Warn("请设置好VLLLM provider配置")
 		return fmt.Errorf("请设置好VLLLM provider配置")
 	}
 
@@ -72,58 +67,43 @@ func (s *DefaultVisionService) initVLLMProviders() error {
 	}
 
 	// 创建provider实例
-	provider, err := vlllm.NewProvider(providerConfig, s.logger)
+	provider, err := vlllm.NewProvider(providerConfig)
 	if err != nil {
-		s.logger.Warn(fmt.Sprintf("创建VLLLM provider 失败: %v", err))
+		logger.Warn(fmt.Sprintf("创建VLLLM provider 失败: %v", err))
 	}
 
 	// 初始化provider
 	if err := provider.Initialize(); err != nil {
-		s.logger.Warn(fmt.Sprintf("初始化VLLLM provider失败: %v", err))
+		logger.Warn(fmt.Sprintf("初始化VLLLM provider失败: %v", err))
 	}
 
 	s.vlllmMap[selected_vlllm] = provider
-	s.logger.Info(fmt.Sprintf("[VLLLM] [初始化 %s] 成功", selected_vlllm))
+	logger.Info(fmt.Sprintf("[VLLLM] [初始化 %s] 成功", selected_vlllm))
 
 	if len(s.vlllmMap) == 0 {
-		s.logger.Error("没有可用的VLLLM provider，请检查配置")
+		logger.Error("没有可用的VLLLM provider，请检查配置")
 		return fmt.Errorf("没有可用的VLLLM provider")
 	}
 
 	return nil
 }
 
-// Start 实现 VisionService 接口，注册所有 Vision 相关路由
-func (s *DefaultVisionService) Start(
-	ctx context.Context,
-	engine *gin.Engine,
-	apiGroup *gin.RouterGroup,
-) error {
-	// Vision 主接口（GET用于状态检查，POST用于图片分析）
-	apiGroup.GET("/vision", s.handleGet)
-	apiGroup.POST("/vision", s.handlePost)
-	apiGroup.OPTIONS("/vision", s.handleOptions)
-
-	s.logger.Info("[Vision] [服务] HTTP路由注册完成")
-	return nil
-}
-
-// handleOptions 处理OPTIONS请求（CORS）
-func (s *DefaultVisionService) handleOptions(c *gin.Context) {
-	s.logger.Info("收到Vision CORS预检请求 options")
+// HandleOptions 处理OPTIONS请求（CORS）
+func (s *DefaultVisionService) HandleOptions(c *gin.Context) {
+	logger.Info("收到Vision CORS预检请求 options")
 	s.addCORSHeaders(c)
 	c.Status(http.StatusOK)
 }
 
-// handleGet 处理GET请求（状态检查）
+// HandleGet 处理GET请求（状态检查）
 // @Summary Vision服务状态检查
 // @Description 检查Vision服务是否正常运行
 // @Tags Vision
 // @Produce plain
 // @Success 200 {string} string "服务状态信息"
 // @Router /vision [get]
-func (s *DefaultVisionService) handleGet(c *gin.Context) {
-	s.logger.Info("收到Vision状态检查请求 get")
+func (s *DefaultVisionService) HandleGet(c *gin.Context) {
+	logger.Info("收到Vision状态检查请求 get")
 	s.addCORSHeaders(c)
 
 	// 检查Vision服务状态
@@ -152,7 +132,7 @@ func (s *DefaultVisionService) handleGet(c *gin.Context) {
 // @Failure 401 {object} VisionResponse
 // @Failure 500 {object} VisionResponse
 // @Router /vision [post]
-func (s *DefaultVisionService) handlePost(c *gin.Context) {
+func (s *DefaultVisionService) HandlePost(c *gin.Context) {
 	s.addCORSHeaders(c)
 
 	deviceID := c.GetHeader("Device-Id")
@@ -161,11 +141,11 @@ func (s *DefaultVisionService) handlePost(c *gin.Context) {
 	req, err := s.parseMultipartRequest(c, deviceID)
 	if err != nil {
 		s.respondError(c, http.StatusBadRequest, err.Error())
-		s.logger.Warn(fmt.Sprintf("Vision请求解析失败: %v", err))
+		logger.Warn(fmt.Sprintf("Vision请求解析失败: %v", err))
 		return
 	}
 
-	s.logger.Debug("收到Vision分析请求 %v", map[string]any{
+	logger.Debug("收到Vision分析请求 %v", map[string]any{
 		"device_id":  req.DeviceID,
 		"client_id":  req.ClientID,
 		"question":   req.Question,
@@ -184,14 +164,14 @@ func (s *DefaultVisionService) handlePost(c *gin.Context) {
 
 	if err != nil {
 		s.respondError(c, http.StatusInternalServerError, err.Error())
-		s.logger.Warn(fmt.Sprintf("Vision请求处理失败: %v", err))
+		logger.Warn(fmt.Sprintf("Vision请求处理失败: %v", err))
 		// 返回成功响应
 		response.Success = false
 		response.Message = err.Error()
 		response.Result = "" // 清空结果
 	}
 
-	s.logger.Info("Vision分析结果%t: %s", response.Success, response.Result)
+	logger.Info("Vision分析结果%t: %s", response.Success, response.Result)
 	c.JSON(http.StatusOK, response)
 }
 
@@ -207,17 +187,17 @@ func (s *DefaultVisionService) parseMultipartRequest(
 	}
 
 	// 打印所有的form字段
-	s.logger.Info("解析到的form字段:")
+	logger.Info("解析到的form字段:")
 	if c.Request.MultipartForm != nil {
 		// 打印所有文本字段
 		for key, values := range c.Request.MultipartForm.Value {
-			s.logger.Info(fmt.Sprintf("文本字段 %s: %v", key, values))
+			logger.Info(fmt.Sprintf("文本字段 %s: %v", key, values))
 		}
 		// 打印所有文件字段
 		for key, files := range c.Request.MultipartForm.File {
-			s.logger.Info(fmt.Sprintf("文件字段 %s: 共%d个文件", key, len(files)))
+			logger.Info(fmt.Sprintf("文件字段 %s: 共%d个文件", key, len(files)))
 			for i, file := range files {
-				s.logger.Info(
+				logger.Info(
 					fmt.Sprintf("  文件%d: %s (大小: %d bytes)", i+1, file.Filename, file.Size),
 				)
 			}
@@ -293,7 +273,7 @@ func (s *DefaultVisionService) saveImageToFile(imageData []byte, deviceID string
 		return "", fmt.Errorf("保存图片文件失败: %v", err)
 	}
 
-	s.logger.Info(fmt.Sprintf("图片已保存到: %s", filepath))
+	logger.Info(fmt.Sprintf("图片已保存到: %s", filepath))
 	return filepath, nil
 }
 
@@ -313,7 +293,7 @@ func (s *DefaultVisionService) processVisionRequest(req *VisionRequest) (string,
 		Data:   imageBase64,
 		Format: s.detectImageFormat(req.Image),
 	}
-	s.logger.Debug("处理图片数据: %s, 格式: %s", req.ClientID, imageData.Format)
+	logger.Debug("处理图片数据: %s, 格式: %s", req.ClientID, imageData.Format)
 	// 调用VLLLM provider
 	messages := []providers.Message{} // 空的历史消息
 	responseChan, err := provider.ResponseWithImage(
@@ -332,7 +312,7 @@ func (s *DefaultVisionService) processVisionRequest(req *VisionRequest) (string,
 	for content := range responseChan {
 		result.WriteString(content)
 	}
-	s.logger.Info(fmt.Sprintf("VLLLM分析结果: %s", result.String()))
+	logger.Info(fmt.Sprintf("VLLLM分析结果: %s", result.String()))
 
 	return result.String(), nil
 }
@@ -440,9 +420,9 @@ func (s *DefaultVisionService) respondError(c *gin.Context, statusCode int, mess
 func (s *DefaultVisionService) Cleanup() error {
 	for name, provider := range s.vlllmMap {
 		if err := provider.Cleanup(); err != nil {
-			s.logger.Warn(fmt.Sprintf("清理VLLLM provider %s 失败: %v", name, err))
+			logger.Warn(fmt.Sprintf("清理VLLLM provider %s 失败: %v", name, err))
 		}
 	}
-	s.logger.Info("Vision服务清理完成")
+	logger.Info("Vision服务清理完成")
 	return nil
 }
