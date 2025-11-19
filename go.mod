@@ -1,4 +1,4 @@
-module xiaozhi-server-go
+module github.com/urie96/xiaozhi-server-go
 
 go 1.24
 
@@ -13,7 +13,6 @@ require (
 	github.com/sashabaranov/go-openai v1.40.0
 	github.com/wujunwei928/edge-tts-go v0.0.0-20250315123430-d4675babeb96
 	golang.org/x/image v0.27.0
-	golang.org/x/sync v0.15.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
