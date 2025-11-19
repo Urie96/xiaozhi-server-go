@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -105,7 +106,7 @@ func (ac *AudioCache) SaveCachedAudio(text string, data []byte) (string, error) 
 
 	// 检查目标文件是否已存在
 	if _, err := os.Stat(targetPath); err == nil {
-		//DefaultLogger.Info("音频文件已存在，跳过保存: %s", targetPath)
+		// DefaultLogger.Info("音频文件已存在，跳过保存: %s", targetPath)
 		return targetPath, nil // 文件已存在，跳过保存
 	}
 
@@ -149,7 +150,6 @@ func (ac *AudioCache) generateFilename(text, suffix string) string {
 
 // sanitizeFilename 清理文件名，移除不安全的字符
 func (ac *AudioCache) sanitizeFilename(text string, l int) string {
-
 	// 移除或替换文件名中不安全的字符
 	unsafe := regexp.MustCompile(`[\\/:*?"<>|\x00-\x1f]`)
 	safe := unsafe.ReplaceAllString(text, "_")
@@ -182,7 +182,7 @@ func (ac *AudioCache) sanitizeFilename(text string, l int) string {
 
 // IsAudioCacheHit 检查文本是否为音频缓存命中
 func IsAudioCacheHit(text string, audioCacheWords []string) bool {
-	return IsInArray(text, audioCacheWords)
+	return slices.Contains(audioCacheWords, text)
 }
 
 // IsCachedFile 判断指定文件路径是否为缓存文件

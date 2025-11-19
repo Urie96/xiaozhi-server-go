@@ -16,9 +16,9 @@ var (
 	reRemoveAllPunctuation = regexp.MustCompile(
 		`[.,!?;:，。！？、；：""''「」『』（）\(\)【】\[\]{}《》〈〉—–\-_~·…‖\|\\/*&\^%\$#@\+=<>]`,
 	)
-	reWakeUpWord             = regexp.MustCompile(`^你好.+`)
-	reRemoveParenthesesCN    = regexp.MustCompile(`（[^）]*）`)  // 中文括号
-	reRemoveParenthesesEN    = regexp.MustCompile(`\([^)]*\)`)  // 英文括号
+	reWakeUpWord          = regexp.MustCompile(`^你好.+`)
+	reRemoveParenthesesCN = regexp.MustCompile(`（[^）]*）`)   // 中文括号
+	reRemoveParenthesesEN = regexp.MustCompile(`\([^)]*\)`) // 英文括号
 )
 
 // splitAtLastPunctuation 在最后一个标点符号处分割文本，优化聊天场景下的分句逻辑
@@ -144,12 +144,7 @@ func findLastPunctuationWithMinLength(text string, punctuations []string, minLen
 	endPos := lastIndex + len(foundPunctuation)
 
 	// 检查标点符号后是否有需要一起保留的引号或括号
-	endPos = adjustForClosingQuotes(text, endPos)
-
-	// 确保不超出文本长度
-	if endPos > len(text) {
-		endPos = len(text)
-	}
+	endPos = min(adjustForClosingQuotes(text, endPos), len(text))
 	return text[:endPos], endPos
 }
 
@@ -277,27 +272,13 @@ outer:
 
 // joinStrings 连接字符串切片
 func JoinStrings(strs []string) string {
-	var result string
-	for _, s := range strs {
-		result += s
-	}
-	return result
+	return strings.Join(strs, "")
 }
 
 // IsWakeUpWord 判断是否是唤醒词，格式为"你好xx"
 func IsWakeUpWord(text string) bool {
 	// 检测是否匹配
 	return reWakeUpWord.MatchString(text)
-}
-
-// IsInArray 判断text是否在字符串数组中
-func IsInArray(text string, array []string) bool {
-	for _, item := range array {
-		if item == text {
-			return true
-		}
-	}
-	return false
 }
 
 // RandomSelectFromArray 从字符串数组中随机选择一个返回
@@ -310,15 +291,6 @@ func RandomSelectFromArray(array []string) string {
 	index := rand.Intn(len(array))
 
 	return array[index]
-}
-
-func GenerateSecurePassword(length int) string {
-	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()-_=+[]{}|;:,.<>?/~`"
-	password := make([]byte, length)
-	for i := range password {
-		password[i] = charset[rand.Intn(len(charset))]
-	}
-	return string(password)
 }
 
 // RemoveParentheses 移除括号及括号内的内容

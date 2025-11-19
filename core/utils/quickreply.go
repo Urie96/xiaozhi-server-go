@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 )
 
@@ -130,7 +131,7 @@ func (qrc *QuickReplyCache) copyFile(src, dst string) error {
 
 // IsQuickReplyHit 检查文本是否为快速回复词
 func IsQuickReplyHit(text string, quickReplyWords []string) bool {
-	return IsInArray(text, quickReplyWords)
+	return slices.Contains(quickReplyWords, text)
 }
 
 // IsCachedFile 判断指定文件路径是否为缓存文件

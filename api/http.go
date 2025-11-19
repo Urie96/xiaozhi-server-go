@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
-	"strings"
 
 	"github.com/urie96/xiaozhi-server-go/configs"
 	"github.com/urie96/xiaozhi-server-go/httpsvr/ota"
@@ -47,15 +46,6 @@ func StartHttpServer(config *configs.Config) {
 	// API路由全部挂载到/api前缀下
 	apiGroup := router.Group("/api")
 
-	// history 路由兜底，只处理 /web 下的 GET 请求
-	router.NoRoute(func(c *gin.Context) {
-		path := c.Request.URL.Path
-		if strings.HasPrefix(path, "/api") {
-			c.JSON(404, gin.H{"error": "api Not found"})
-			return
-		}
-	})
-
 	// 启动OTA服务
 	otaService := ota.NewDefaultOTAService(config.WebSocketURL)
 	apiGroup.Any("/ota/", otaService.HandleOTARequest())
@@ -67,9 +57,7 @@ func StartHttpServer(config *configs.Config) {
 		panic(fmt.Sprintf("Vision 服务初始化失败 %v", err))
 	}
 
-	apiGroup.GET("/vision", visionService.HandleGet)
 	apiGroup.POST("/vision", visionService.HandlePost)
-	apiGroup.OPTIONS("/vision", visionService.HandleOptions)
 
 	// HTTP Server（支持优雅关机）
 	httpServer := &http.Server{

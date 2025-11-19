@@ -9,6 +9,7 @@ import (
 	"os"
 	"strings"
 	"time"
+
 	"github.com/urie96/xiaozhi-server-go/configs"
 	"github.com/urie96/xiaozhi-server-go/core/image"
 	"github.com/urie96/xiaozhi-server-go/core/providers"
@@ -86,35 +87,6 @@ func (s *DefaultVisionService) initVLLMProviders() error {
 	}
 
 	return nil
-}
-
-// HandleOptions 处理OPTIONS请求（CORS）
-func (s *DefaultVisionService) HandleOptions(c *gin.Context) {
-	logger.Info("收到Vision CORS预检请求 options")
-	s.addCORSHeaders(c)
-	c.Status(http.StatusOK)
-}
-
-// HandleGet 处理GET请求（状态检查）
-// @Summary Vision服务状态检查
-// @Description 检查Vision服务是否正常运行
-// @Tags Vision
-// @Produce plain
-// @Success 200 {string} string "服务状态信息"
-// @Router /vision [get]
-func (s *DefaultVisionService) HandleGet(c *gin.Context) {
-	logger.Info("收到Vision状态检查请求 get")
-	s.addCORSHeaders(c)
-
-	// 检查Vision服务状态
-	var message string
-	if len(s.vlllmMap) > 0 {
-		message = fmt.Sprintf("MCP Vision 接口运行正常，共有 %d 个可用的视觉分析模型", len(s.vlllmMap))
-	} else {
-		message = "MCP Vision 接口运行不正常，没有可用的VLLLM provider"
-	}
-
-	c.String(http.StatusOK, message)
 }
 
 // handlePost 处理POST请求（图片分析）
