@@ -9,53 +9,13 @@ import (
 // Config 主配置结构
 type Config struct {
 	Server struct {
-		IP    string `yaml:"ip" json:"ip"`
-		Port  int    `yaml:"port" json:"port"`
-		Token string `json:"token"`
-		Auth  struct {
-			Store struct {
-				Type   string `yaml:"type" json:"type"`     // memory/file/redis
-				Expiry int    `yaml:"expiry" json:"expiry"` // 过期时间(小时)
-			} `yaml:"store" json:"store"`
-		} `yaml:"auth" json:"auth"`
+		IP   string `yaml:"ip" json:"ip"`
+		Port int    `yaml:"port" json:"port"`
 	} `yaml:"server" json:"server"`
 
-	// 传输层配置
-	Transport struct {
-		WebSocket struct {
-			IP   string `yaml:"ip" json:"ip"`
-			Port int    `yaml:"port" json:"port"`
-		} `yaml:"websocket" json:"websocket"`
-
-		MQTTUDP struct {
-			Enabled bool `yaml:"enabled" json:"enabled"`
-			MQTT    struct {
-				IP   string `yaml:"ip" json:"ip"`
-				Port int    `yaml:"port" json:"port"`
-				QoS  int    `yaml:"qos" json:"qos"`
-			} `yaml:"mqtt" json:"mqtt"`
-			UDP struct {
-				IP                string `yaml:"ip" json:"ip"`
-				ShowPort          int    `yaml:"show_port" json:"show_port"` // 显示端口
-				Port              int    `yaml:"port" json:"port"`
-				SessionTimeout    string `yaml:"session_timeout" json:"session_timeout"`
-				MaxPacketSize     int    `yaml:"max_packet_size" json:"max_packet_size"`
-				EnableReliability bool   `yaml:"enable_reliability" json:"enable_reliability"`
-			} `yaml:"udp" json:"udp"`
-		} `yaml:"mqtt_udp" json:"mqtt_udp"`
-	} `yaml:"transport" json:"transport"`
-
-	Log struct {
-		LogLevel string `yaml:"log_level" json:"log_level"`
-	} `yaml:"log" json:"log"`
-
-	Web struct {
-		Port         int    `yaml:"port" json:"port"`
-		StaticDir    string `yaml:"static_dir" json:"static_dir"`
-		Websocket    string `yaml:"websocket" json:"websocket"`
-		VisionURL    string `yaml:"vision" json:"vision"`
-		ActivateText string `yaml:"activate_text" json:"activate_text"` // 发送激活码时携带的文本
-	} `yaml:"web" json:"web"`
+	WebSocketURL string `yaml:"websocket_url" json:"websocket_url"`
+	VisionURL    string `yaml:"vision_url" json:"vision_url"`
+	LogLevel     string `yaml:"log_level" json:"log_level"`
 
 	DefaultPrompt   string        `yaml:"prompt"             json:"prompt"`
 	Roles           []Role        `yaml:"roles"              json:"roles"` // 角色列表

@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+
 	"github.com/urie96/xiaozhi-server-go/configs"
 	"github.com/urie96/xiaozhi-server-go/logger"
 
@@ -250,7 +251,7 @@ func (s *DefaultOTAService) handlePostOTA(c *gin.Context) {
 		firmwareURL = "/ota_bin/" + latest
 	}
 	cfg := configs.Cfg
-	updateURL := cfg.Web.Websocket
+	updateURL := cfg.WebSocketURL
 	resp := OtaFirmwareResponse{}
 	resp.ServerTime.Timestamp = time.Now().UnixNano() / 1e6
 	resp.ServerTime.TimezoneOffset = 8 * 60

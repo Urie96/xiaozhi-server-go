@@ -11,6 +11,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
 	"github.com/urie96/xiaozhi-server-go/configs"
 	"github.com/urie96/xiaozhi-server-go/core/chat"
 	"github.com/urie96/xiaozhi-server-go/core/function"
@@ -126,7 +127,6 @@ type ConnectionHandler struct {
 	mcpManager       *mcp.Manager
 
 	mcpResultHandlers map[string]func(any) // MCP处理器映射
-	ctx               context.Context
 }
 
 // NewConnectionHandler 创建新的连接处理器
@@ -134,7 +134,6 @@ func NewConnectionHandler(
 	config *configs.Config,
 	providerSet *pool.ProviderSet,
 	req *http.Request,
-	ctx context.Context,
 ) *ConnectionHandler {
 	handler := &ConnectionHandler{
 		config:           config,
@@ -162,8 +161,6 @@ func NewConnectionHandler(
 		serverAudioSampleRate:    24000,
 		serverAudioChannels:      1,
 		serverAudioFrameDuration: 60,
-
-		ctx: ctx,
 
 		headers: make(map[string]string),
 	}
@@ -251,10 +248,10 @@ func (h *ConnectionHandler) Handle(conn Connection) {
 		// 池化的管理器已经预初始化，只需要绑定连接
 		params := map[string]any{
 			"session_id": h.sessionID,
-			"vision_url": h.config.Web.VisionURL,
+			"vision_url": h.config.VisionURL,
 			"device_id":  h.deviceID,
 			"client_id":  h.clientId,
-			"token":      h.config.Server.Token,
+			"token":      "",
 		}
 		if err := h.mcpManager.BindConnection(conn, h.functionRegister, params); err != nil {
 			h.LogError(fmt.Sprintf("绑定MCP管理器连接失败: %v", err))
@@ -376,7 +373,7 @@ func (h *ConnectionHandler) QuitIntent(text string) bool {
 	cleanText := utils.RemoveAllPunctuation(text) // 移除标点符号，确保匹配准确
 	// 检查是否包含退出命令
 	for _, cmd := range exitCommands {
-		logger.Debug(fmt.Sprintf("检查退出命令: %s,%s", cmd, cleanText))
+		logger.Debug("检查退出命令: %s,%s", cmd, cleanText)
 		// 判断相等
 		if cleanText == cmd {
 			h.LogInfo("[客户端] [退出意图] 收到，准备结束对话")

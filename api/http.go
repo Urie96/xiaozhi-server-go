@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+
 	"github.com/urie96/xiaozhi-server-go/configs"
 	"github.com/urie96/xiaozhi-server-go/httpsvr/ota"
 	"github.com/urie96/xiaozhi-server-go/httpsvr/vision"
@@ -16,7 +17,7 @@ import (
 
 func StartHttpServer(config *configs.Config) {
 	// 初始化Gin引擎
-	if config.Log.LogLevel == "debug" {
+	if config.LogLevel == "debug" {
 		gin.SetMode(gin.DebugMode)
 	} else {
 		gin.SetMode(gin.ReleaseMode)
@@ -56,7 +57,7 @@ func StartHttpServer(config *configs.Config) {
 	})
 
 	// 启动OTA服务
-	otaService := ota.NewDefaultOTAService(config.Web.Websocket)
+	otaService := ota.NewDefaultOTAService(config.WebSocketURL)
 	apiGroup.Any("/ota/", otaService.HandleOTARequest())
 	apiGroup.GET("/ota_bin/*filepath", otaService.HandleFirmwareDownload())
 
@@ -72,7 +73,7 @@ func StartHttpServer(config *configs.Config) {
 
 	// HTTP Server（支持优雅关机）
 	httpServer := &http.Server{
-		Addr:    ":" + strconv.Itoa(config.Web.Port),
+		Addr:    ":" + strconv.Itoa(config.Server.Port),
 		Handler: router,
 	}
 
