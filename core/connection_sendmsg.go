@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sync/atomic"
 	"time"
+
 	"github.com/urie96/xiaozhi-server-go/core/utils"
 	"github.com/urie96/xiaozhi-server-go/logger"
 )
@@ -94,23 +95,6 @@ func (h *ConnectionHandler) sendEmotionMessage(emotion string) error {
 
 func (h *ConnectionHandler) sendAudioMessage(filepath string, text string, textIndex int, round int) {
 	startTime := time.Now() // 记录发送任务开始时间
-	defer func() {
-		// 音频发送完成后，根据配置决定是否删除文件
-		h.deleteAudioFileIfNeeded(filepath, "音频发送完成")
-
-		spentTime := time.Since(startTime).Milliseconds()
-		h.LogDebug(fmt.Sprintf("[TTS] [发送任务 %d/%dms/%dms] %s", textIndex, h.tts_last_text_index, spentTime, text))
-		h.providers.asr.ResetStartListenTime()
-		if textIndex == h.tts_last_text_index {
-			h.sendTTSMessage("stop", "", textIndex)
-			if h.closeAfterChat {
-				h.Close()
-			} else {
-				h.clearSpeakStatus()
-			}
-		}
-	}()
-
 	if len(filepath) == 0 {
 		return
 	}
@@ -173,6 +157,21 @@ func (h *ConnectionHandler) sendAudioMessage(filepath string, text string, textI
 	if err := h.sendTTSMessage("sentence_end", text, textIndex); err != nil {
 		h.LogError(fmt.Sprintf("发送TTS结束状态失败: %v", err))
 		return
+	}
+
+	// 音频发送完成后，根据配置决定是否删除文件
+	h.deleteAudioFileIfNeeded(filepath, "音频发送完成")
+
+	spentTime := time.Since(startTime).Milliseconds()
+	h.LogDebug(fmt.Sprintf("[TTS] [发送任务 %d/%dms/%dms] %s", textIndex, h.tts_last_text_index, spentTime, text))
+	h.providers.asr.ResetStartListenTime()
+	if textIndex == h.tts_last_text_index {
+		h.sendTTSMessage("stop", "", textIndex)
+		if h.closeAfterChat {
+			h.Close()
+		} else {
+			h.clearSpeakStatus()
+		}
 	}
 }
 
