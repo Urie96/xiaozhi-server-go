@@ -12,7 +12,11 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/urie96/go-streams"
 	"github.com/urie96/xiaozhi-server-go/core/providers/tts"
+	"github.com/urie96/xiaozhi-server-go/core/providers/tts/doubao/protocals"
+	"github.com/urie96/xiaozhi-server-go/logger"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
@@ -51,6 +55,7 @@ type synResp struct {
 type Provider struct {
 	*tts.BaseProvider
 	baseURL string
+	conn    *websocket.Conn
 }
 
 // NewProvider 创建豆包 TTS 提供者
@@ -58,10 +63,31 @@ func NewProvider(config *tts.Config, deleteFile bool) (*Provider, error) {
 	base := tts.NewBaseProvider(config, deleteFile)
 	u := url.URL{Scheme: "wss", Host: "openspeech.bytedance.com", Path: "/api/v1/tts/ws_binary"}
 
+	header := http.Header{}
+	header.Set("X-Api-App-Key", config.AppID)
+	header.Set("X-Api-Access-Key", config.Token)
+	header.Set("X-Api-Resource-Id", "volc.service_type.10029")
+	header.Set("X-Api-Connect-Id", config.Voice)
+	conn, r, err := websocket.DefaultDialer.Dial("wss://openspeech.bytedance.com/api/v3/tts/bidirection", header)
+	if err != nil {
+		return nil, err
+	}
+	logger.Info("Connection established, Logid: %v", r.Header.Get("x-tt-logid"))
+
+	// ----------------start connection----------------
+	if err := protocols.StartConnection(conn); err != nil {
+		return nil, err
+	}
+
 	return &Provider{
 		BaseProvider: base,
 		baseURL:      u.String(),
+		conn:         conn,
 	}, nil
+}
+
+func (p *Provider) TTS(src streams.Stream[string]) (io.Reader, error) {
+	panic("implement me")
 }
 
 // ToTTS 实现文本到语音的转换

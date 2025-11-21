@@ -2,6 +2,9 @@ package providers
 
 import (
 	"context"
+	"io"
+
+	"github.com/urie96/go-streams"
 	"github.com/urie96/xiaozhi-server-go/core/types"
 )
 
@@ -53,6 +56,7 @@ type TTSProvider interface {
 
 	// 合成音频并返回文件路径
 	ToTTS(text string) (string, error)
+	TTS(streams.Stream[string]) (io.Reader, error)
 	SetVoice(name string) (error, string)
 }
 

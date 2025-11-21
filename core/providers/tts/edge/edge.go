@@ -2,9 +2,12 @@ package edge
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/urie96/go-streams"
 	"github.com/urie96/xiaozhi-server-go/core/providers/tts"
 
 	"github.com/wujunwei928/edge-tts-go/edge_tts"
@@ -80,6 +83,10 @@ func (p *Provider) ToTTS(text string) (string, error) {
 
 	// Return the path to the generated audio file
 	return tempFile, nil
+}
+
+func (p *Provider) TTS(src streams.Stream[string]) (io.Reader, error) {
+	panic("implement me")
 }
 
 func init() {

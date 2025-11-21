@@ -12,6 +12,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/urie96/go-streams"
 	"github.com/urie96/xiaozhi-server-go/configs"
 	"github.com/urie96/xiaozhi-server-go/core/chat"
 	"github.com/urie96/xiaozhi-server-go/core/function"
@@ -46,6 +47,13 @@ type ttsConfigGetter interface {
 
 type llmConfigGetter interface {
 	Config() *llm.Config
+}
+
+type TTSQueue struct {
+	stream    streams.Stream[string]
+	text      string
+	round     int // 轮次
+	textIndex int
 }
 
 // ConnectionHandler 连接处理器结构
@@ -107,17 +115,18 @@ type ConnectionHandler struct {
 	clientTextQueue  chan string
 
 	// TTS任务队列
-	ttsQueue chan struct {
-		text      string
-		round     int // 轮次
-		textIndex int
-	}
+	ttsQueue chan TTSQueue
 
 	audioMessagesQueue chan struct {
 		filepath  string
 		text      string
 		round     int // 轮次
 		textIndex int
+	}
+
+	audioBytesQueue chan struct {
+		audio []byte
+		round int // 轮次
 	}
 
 	talkRound      int       // 轮次计数
@@ -139,19 +148,19 @@ func NewConnectionHandler(
 		config:           config,
 		clientListenMode: "auto",
 		stopChan:         make(chan struct{}),
-		clientAudioQueue: make(chan []byte, 100),
-		clientTextQueue:  make(chan string, 100),
-		ttsQueue: make(chan struct {
-			text      string
-			round     int // 轮次
-			textIndex int
-		}, 100),
+		clientAudioQueue: make(chan []byte, 64),
+		clientTextQueue:  make(chan string, 64),
+		ttsQueue:         make(chan TTSQueue, 64),
 		audioMessagesQueue: make(chan struct {
 			filepath  string
 			text      string
 			round     int // 轮次
 			textIndex int
-		}, 100),
+		}, 32),
+		audioBytesQueue: make(chan struct {
+			audio []byte
+			round int // 轮次
+		}, 16),
 
 		tts_last_text_index: -1,
 
@@ -455,203 +464,88 @@ func (h *ConnectionHandler) handleChatMessage(ctx context.Context, text string) 
 }
 
 func (h *ConnectionHandler) genResponseByLLM(ctx context.Context, messages []providers.Message, round int) error {
-	defer func() {
-		if r := recover(); r != nil {
-			h.LogError(fmt.Sprintf("genResponseByLLM发生panic: %v", r))
-			errorMsg := "抱歉，处理您的请求时发生了错误"
-			h.tts_last_text_index = 1 // 重置文本索引
-			h.SpeakAndPlay(errorMsg, 1, round)
-		}
-	}()
-
-	llmStartTime := time.Now()
-	// logger.Info("开始生成LLM回复, round:%d ", round)
-	for _, msg := range messages {
-		_ = msg
-		// msg.Print()
-	}
 	// 使用LLM生成回复
 	tools := h.functionRegister.GetAllFunctions()
-	responses, err := h.providers.llm.ResponseWithFunctions(ctx, h.sessionID, messages, tools)
+	llmStream, err := h.providers.llm.ResponseWithFunctions(ctx, h.sessionID, messages, tools)
 	if err != nil {
 		return fmt.Errorf("LLM生成回复失败: %v", err)
 	}
 
-	// 处理回复
-	var responseMessage []string
-	processedChars := 0
-	textIndex := 0
+	first, err := llmStream.Recv()
+	if err != nil {
+		h.LogError(fmt.Sprintf("LLM响应错误: %s", err))
+		errorMsg := "抱歉，服务暂时不可用，请稍后再试"
+		h.tts_last_text_index = 1 // 重置文本索引
+		h.SpeakAndPlay(errorMsg, 1, round)
+		return fmt.Errorf("LLM响应错误: %s", err)
+	}
+
+	if len(first.ToolCalls) > 0 {
+		functionID := first.ToolCalls[0].ID
+		functionName := first.ToolCalls[0].Function.Name
+		functionArguments := first.ToolCalls[0].Function.Arguments
+
+		arguments := make(map[string]any)
+		if err := json.Unmarshal([]byte(functionArguments), &arguments); err != nil {
+			logger.Info("函数调用参数解析失败: %v", err)
+		}
+		functionCallData := map[string]any{
+			"id":        functionID,
+			"name":      functionName,
+			"arguments": functionArguments,
+		}
+		logger.Info("函数调用: %v", arguments)
+		if h.mcpManager.IsMCPTool(functionName) {
+			// 处理MCP函数调用
+			result, err := h.mcpManager.ExecuteTool(ctx, functionName, arguments)
+			if err != nil {
+				logger.Info("MCP函数调用失败: %v", err)
+				if result == nil {
+					result = "MCP工具调用失败"
+				}
+			}
+			// 判断result 是否是types.ActionResponse类型
+			if actionResult, ok := result.(types.ActionResponse); ok {
+				h.handleFunctionResult(actionResult, functionCallData)
+			} else {
+				h.LogInfo(fmt.Sprintf("MCP函数调用结果: %v", result))
+				actionResult := types.ActionResponse{
+					Action: types.ActionTypeReqLLM, // 动作类型
+					Result: result,                 // 动作产生的结果
+				}
+				h.handleFunctionResult(actionResult, functionCallData)
+			}
+		} else {
+			logger.Info("普通函数调用")
+		}
+		return nil
+	}
 
 	atomic.StoreInt32(&h.serverVoiceStop, 0)
 
-	// 处理流式响应
-	toolCallFlag := false
-	functionName := ""
-	functionID := ""
-	functionArguments := ""
-	contentArguments := ""
+	llmStream = streams.Concat(streams.FromSlice([]types.Response{first}), llmStream)
 
-	for response := range responses {
-		content := response.Content
-		toolCall := response.ToolCalls
-
-		if response.Error != "" {
-			h.LogError(fmt.Sprintf("LLM响应错误: %s", response.Error))
-			errorMsg := "抱歉，服务暂时不可用，请稍后再试"
-			h.tts_last_text_index = 1 // 重置文本索引
-			h.SpeakAndPlay(errorMsg, 1, round)
-			return fmt.Errorf("LLM响应错误: %s", response.Error)
+	textStream := streams.Map(llmStream, func(response types.Response) string {
+		if len(response.ToolCalls) > 0 {
+			logger.Warn("函数调用%v不是在首包返回", response.ToolCalls[0].Function.Name)
+			return ""
 		}
+		return response.Content
+	})
 
-		if content != "" {
-			// 累加content_arguments
-			contentArguments += content
-		}
-
-		if !toolCallFlag && strings.HasPrefix(contentArguments, "<tool_call>") {
-			toolCallFlag = true
-		}
-
-		if len(toolCall) > 0 {
-			toolCallFlag = true
-			if toolCall[0].ID != "" {
-				functionID = toolCall[0].ID
-			}
-			if toolCall[0].Function.Name != "" {
-				functionName = toolCall[0].Function.Name
-			}
-			if toolCall[0].Function.Arguments != "" {
-				functionArguments += toolCall[0].Function.Arguments
-			}
-		}
-
-		if content != "" {
-			if strings.Contains(content, "服务响应异常") {
-				h.LogError(fmt.Sprintf("检测到LLM服务异常: %s", content))
-				errorMsg := "抱歉，LLM服务暂时不可用，请稍后再试"
-				h.tts_last_text_index = 1 // 重置文本索引
-				h.SpeakAndPlay(errorMsg, 1, round)
-				return fmt.Errorf("LLM服务异常")
-			}
-
-			if toolCallFlag {
-				continue
-			}
-
-			responseMessage = append(responseMessage, content)
-			// 处理分段
-			fullText := utils.JoinStrings(responseMessage)
-			if len(fullText) <= processedChars {
-				logger.Warn(fmt.Sprintf("文本处理异常: fullText长度=%d, processedChars=%d", len(fullText), processedChars))
-				continue
-			}
-			currentText := fullText[processedChars:]
-
-			// 按标点符号分割
-			if segment, charsCnt := utils.SplitAtLastPunctuation(currentText); charsCnt > 0 {
-				textIndex++
-				segment = strings.TrimSpace(segment)
-				if textIndex == 1 {
-					now := time.Now()
-					llmSpentTime := now.Sub(llmStartTime)
-					h.LogInfo(fmt.Sprintf("[LLM] [回复 %s/%d] 第一句话: %s", llmSpentTime, round, segment))
-				} else {
-					h.LogInfo(fmt.Sprintf("[LLM] [分段 %d/%d] %s", textIndex, round, segment))
-				}
-				h.tts_last_text_index = textIndex
-				err := h.SpeakAndPlay(segment, textIndex, round)
-				if err != nil {
-					h.LogError(fmt.Sprintf("播放LLM回复分段失败: %v", err))
-				}
-				processedChars += charsCnt
-			}
-		}
+	textStream1, textStream2 := streams.TeeReader(textStream)
+	err = h.SpeakAndPlayStream(textStream1, round)
+	if err != nil {
+		return err
 	}
 
-	if toolCallFlag {
-		bHasError := false
-		if functionID == "" {
-			a := utils.Extract_json_from_string(contentArguments)
-			if a != nil {
-				functionName = a["name"].(string)
-				argumentsJson, err := json.Marshal(a["arguments"])
-				if err != nil {
-					h.LogError(fmt.Sprintf("函数调用参数解析失败: %v", err))
-				}
-				functionArguments = string(argumentsJson)
-				functionID = uuid.New().String()
-			} else {
-				bHasError = true
-			}
-			if bHasError {
-				h.LogError(fmt.Sprintf("函数调用参数解析失败: %v", err))
-			}
-		}
-		if !bHasError {
-			// 清空responseMessage
-			responseMessage = []string{}
-			arguments := make(map[string]any)
-			if err := json.Unmarshal([]byte(functionArguments), &arguments); err != nil {
-				h.LogError(fmt.Sprintf("函数调用参数解析失败: %v", err))
-			}
-			functionCallData := map[string]any{
-				"id":        functionID,
-				"name":      functionName,
-				"arguments": functionArguments,
-			}
-			h.LogInfo(fmt.Sprintf("函数调用: %v", arguments))
-			if h.mcpManager.IsMCPTool(functionName) {
-				// 处理MCP函数调用
-				result, err := h.mcpManager.ExecuteTool(ctx, functionName, arguments)
-				if err != nil {
-					h.LogError(fmt.Sprintf("MCP函数调用失败: %v", err))
-					if result == nil {
-						result = "MCP工具调用失败"
-					}
-				}
-				// 判断result 是否是types.ActionResponse类型
-				if actionResult, ok := result.(types.ActionResponse); ok {
-					h.handleFunctionResult(actionResult, functionCallData, textIndex)
-				} else {
-					h.LogInfo(fmt.Sprintf("MCP函数调用结果: %v", result))
-					actionResult := types.ActionResponse{
-						Action: types.ActionTypeReqLLM, // 动作类型
-						Result: result,                 // 动作产生的结果
-					}
-					h.handleFunctionResult(actionResult, functionCallData, textIndex)
-				}
-
-			} else {
-				// 处理普通函数调用
-				// h.functionRegister.CallFunction(functionName, functionCallData)
-			}
-		}
-	}
-
-	// 处理剩余文本
-	fullResponse := utils.JoinStrings(responseMessage)
-	if len(fullResponse) > processedChars {
-		remainingText := fullResponse[processedChars:]
-		if remainingText != "" {
-			textIndex++
-			h.LogInfo(fmt.Sprintf("[LLM] [分段 剩余文本 %d/%d] %s", textIndex, round, remainingText))
-			h.tts_last_text_index = textIndex
-			h.SpeakAndPlay(remainingText, textIndex, round)
-		}
-	} else {
-		logger.Debug("无剩余文本需要处理: fullResponse长度=%d, processedChars=%d", len(fullResponse), processedChars)
-	}
-
-	// 分析回复并发送相应的情绪
-	content := utils.JoinStrings(responseMessage)
+	completeTextResponse, _ := streams.CollectString(textStream2)
 
 	// 添加助手回复到对话历史
-	if !toolCallFlag {
-		h.dialogueManager.Put(chat.Message{
-			Role:    "assistant",
-			Content: content,
-		})
-	}
+	h.dialogueManager.Put(chat.Message{
+		Role:    "assistant",
+		Content: completeTextResponse,
+	})
 
 	return nil
 }
@@ -691,7 +585,7 @@ func (h *ConnectionHandler) addToolCallMessage(toolResultText string, functionCa
 	})
 }
 
-func (h *ConnectionHandler) handleFunctionResult(result types.ActionResponse, functionCallData map[string]any, textIndex int) {
+func (h *ConnectionHandler) handleFunctionResult(result types.ActionResponse, functionCallData map[string]any) {
 	switch result.Action {
 	case types.ActionTypeError:
 		h.LogError(fmt.Sprintf("函数调用错误: %v", result.Result))
@@ -743,7 +637,11 @@ func (h *ConnectionHandler) processTTSQueueCoroutine() {
 		case <-h.stopChan:
 			return
 		case task := <-h.ttsQueue:
-			h.processTTSTask(task.text, task.textIndex, task.round)
+			if task.text != "" {
+				h.processTTSTask(task.text, task.textIndex, task.round)
+			} else if task.stream != nil {
+				h.processTTSTaskStream(task.stream, task.round)
+			}
 		}
 	}
 }
@@ -780,17 +678,12 @@ func (h *ConnectionHandler) deleteAudioFileIfNeeded(filepath string, reason stri
 	}
 }
 
+func (h *ConnectionHandler) processTTSTaskStream(src streams.Stream[string], round int) {
+}
+
 // processTTSTask 处理单个TTS任务
 func (h *ConnectionHandler) processTTSTask(text string, textIndex int, round int) {
 	filepath := ""
-	defer func() {
-		h.audioMessagesQueue <- struct {
-			filepath  string
-			text      string
-			round     int
-			textIndex int
-		}{filepath, text, round, textIndex}
-	}()
 
 	if utils.IsQuickReplyHit(text, h.config.QuickReplyWords) {
 		// 尝试从缓存查找音频文件
@@ -839,17 +732,41 @@ func (h *ConnectionHandler) processTTSTask(text string, textIndex int, round int
 		ttsSpentTime := now.Sub(ttsStartTime)
 		logger.Debug(fmt.Sprintf("TTS转换耗时: %s, 文本: %s, 索引: %d", ttsSpentTime, text, textIndex))
 	}
+
+	h.audioMessagesQueue <- struct {
+		filepath  string
+		text      string
+		round     int
+		textIndex int
+	}{filepath, text, round, textIndex}
+}
+
+func (h *ConnectionHandler) SpeakAndPlayStream(src streams.Stream[string], round int) error {
+	src = streams.WithLog(src, "speakAndPlayStream", func(info string) {
+		logger.Info(info)
+	})
+
+	if atomic.LoadInt32(&h.serverVoiceStop) == 1 { // 服务端语音停止
+		h.LogInfo("speakAndPlay 服务端语音停止, 不再发送音频数据")
+		return errors.New("服务端语音已停止，无法合成语音")
+	}
+
+	h.ttsQueue <- TTSQueue{
+		stream: src,
+		round:  round,
+	}
+	return nil
 }
 
 // speakAndPlay 合成并播放语音
 func (h *ConnectionHandler) SpeakAndPlay(text string, textIndex int, round int) error {
 	defer func() {
 		// 将任务加入队列，不阻塞当前流程
-		h.ttsQueue <- struct {
-			text      string
-			round     int
-			textIndex int
-		}{text, round, textIndex}
+		h.ttsQueue <- TTSQueue{
+			text:      text,
+			round:     round,
+			textIndex: textIndex,
+		}
 	}()
 
 	originText := text // 保存原始文本用于日志

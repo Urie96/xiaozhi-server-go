@@ -1,22 +1,18 @@
-// @title 小智服务端 API 文档
-// @version 1.0
-// @description 小智服务端，包含OTA与Vision等接口
-// @host localhost:8080
-// @BasePath /api
 package main
 
 import (
 	"fmt"
 	"os"
+
 	"github.com/urie96/xiaozhi-server-go/api"
 	"github.com/urie96/xiaozhi-server-go/configs"
 	_ "github.com/urie96/xiaozhi-server-go/core/providers/asr/deepgram"
 	_ "github.com/urie96/xiaozhi-server-go/core/providers/asr/doubao"
 	_ "github.com/urie96/xiaozhi-server-go/core/providers/asr/gosherpa"
 	_ "github.com/urie96/xiaozhi-server-go/core/providers/asr/stepfun"
-	_ "github.com/urie96/xiaozhi-server-go/core/providers/llm/coze"
-	_ "github.com/urie96/xiaozhi-server-go/core/providers/llm/doubao"
-	_ "github.com/urie96/xiaozhi-server-go/core/providers/llm/ollama"
+
+	// _ "github.com/urie96/xiaozhi-server-go/core/providers/llm/doubao"
+	// _ "github.com/urie96/xiaozhi-server-go/core/providers/llm/ollama"
 	_ "github.com/urie96/xiaozhi-server-go/core/providers/llm/openai"
 	_ "github.com/urie96/xiaozhi-server-go/core/providers/tts/doubao"
 	_ "github.com/urie96/xiaozhi-server-go/core/providers/tts/edge"

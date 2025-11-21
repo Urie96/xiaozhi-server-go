@@ -1,9 +1,8 @@
 module github.com/urie96/xiaozhi-server-go
 
-go 1.24
+go 1.24.2
 
 require (
-	github.com/coze-dev/coze-go v0.0.0-20250626063826-a17604b061c0
 	github.com/gin-gonic/gin v1.10.1
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.3
@@ -11,6 +10,7 @@ require (
 	github.com/mark3labs/mcp-go v0.29.0
 	github.com/qrtc/opus-go v0.0.1
 	github.com/sashabaranov/go-openai v1.40.0
+	github.com/urie96/go-streams v0.0.0-20251121052303-4af4f56b71bf
 	github.com/wujunwei928/edge-tts-go v0.0.0-20250315123430-d4675babeb96
 	golang.org/x/image v0.27.0
 	gopkg.in/yaml.v3 v3.0.1
@@ -27,7 +27,6 @@ require (
 	github.com/go-playground/validator/v10 v10.26.0 // indirect
 	github.com/go-resty/resty/v2 v2.16.5 // indirect
 	github.com/goccy/go-json v0.10.5 // indirect
-	github.com/golang-jwt/jwt/v5 v5.2.2 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.10 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect

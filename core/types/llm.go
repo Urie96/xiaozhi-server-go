@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/sashabaranov/go-openai"
+	"github.com/urie96/go-streams"
 )
 
 // Action represents the type of action.
@@ -22,14 +23,14 @@ const (
 
 // ActionResponse holds the result of an action.
 type ActionResponse struct {
-	Action   Action      // 动作类型
-	Result   any // 动作产生的结果
-	Response any // 直接回复的内容
+	Action   Action // 动作类型
+	Result   any    // 动作产生的结果
+	Response any    // 直接回复的内容
 }
 
 type ActionResponseCall struct {
-	FuncName string      // 函数名
-	Args     any // 函数参数
+	FuncName string // 函数名
+	Args     any    // 函数参数
 }
 
 // Message 对话消息结构
@@ -72,7 +73,6 @@ type Response struct {
 	UpdateConversationID string     `json:"update_conversation_id,omitempty"`
 	ToolCalls            []ToolCall `json:"tool_calls,omitempty"`
 	StopReason           string     `json:"stop_reason,omitempty"`
-	Error                string     `json:"error,omitempty"`
 }
 
 // Provider 基础提供者接口
@@ -93,13 +93,12 @@ type FunctionRegistryInterface interface {
 // LLMProvider 大语言模型提供者接口
 type LLMProvider interface {
 	Provider
-	Response(ctx context.Context, sessionID string, messages []Message) (<-chan string, error)
 	ResponseWithFunctions(
 		ctx context.Context,
 		sessionID string,
 		messages []Message,
 		tools []openai.Tool,
-	) (<-chan Response, error)
+	) (streams.Stream[Response], error)
 	GetSessionID() string                       // 获取当前会话ID
 	SetIdentityFlag(idType string, flag string) // 设置身份标识
 }
